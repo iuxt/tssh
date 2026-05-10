@@ -37,7 +37,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -288,16 +287,13 @@ func initUserConfig(configFile string) (err error) {
 	parseTsshConfig()
 
 	if userConfig.configPath == "" {
-		userConfig.configPath = filepath.Join(userHomeDir, ".ssh", "config")
-		if runtime.GOOS != "windows" {
-			userConfig.sysConfigPath = "/etc/ssh/ssh_config"
-		}
+		userConfig.configPath = filepath.Join(userHomeDir, ".tssh", "config")
 	} else if strings.ToLower(userConfig.configPath) == "none" {
 		userConfig.configPath = ""
 	}
 
 	if userConfig.exConfigPath == "" {
-		userConfig.exConfigPath = filepath.Join(userHomeDir, ".ssh", "password")
+		userConfig.exConfigPath = filepath.Join(userHomeDir, ".tssh", "password")
 	}
 
 	return nil
