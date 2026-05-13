@@ -95,7 +95,6 @@ func TestSshArgs(t *testing.T) {
 	assertArgsEqual("--tsshd-path /usr/bin/tsshd", sshArgs{TsshdPath: "/usr/bin/tsshd"})
 	assertArgsEqual("--tsshd-port 10000-11000", sshArgs{TsshdPort: "10000-11000"})
 
-	assertArgsEqual("--new-host", sshArgs{NewHost: true})
 	assertArgsEqual("--enc-secret", sshArgs{EncSecret: true})
 	assertArgsEqual("--install-trzsz", sshArgs{InstallTrzsz: true})
 	assertArgsEqual("--install-tsshd", sshArgs{InstallTsshd: true})

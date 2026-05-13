@@ -88,7 +88,6 @@ type sshArgs struct {
 	KCP            bool        `arg:"--kcp" help:"[udp] use KCP protocol for ssh over UDP"`
 	TsshdPath      string      `arg:"--tsshd-path" placeholder:"path" help:"[udp] tsshd absolute path on the server"`
 	TsshdPort      string      `arg:"--tsshd-port" placeholder:"low-high" help:"[udp] port range that tsshd listens on"`
-	NewHost        bool        `arg:"--new-host" help:"[tools] add new host to configuration"`
 	EncSecret      bool        `arg:"--enc-secret" help:"[tools] encode secret for configuration"`
 	ListHosts      bool        `arg:"--list-hosts" help:"[tools] list all hosts in configuration"`
 	InstallTrzsz   bool        `arg:"--install-trzsz" help:"[tools] install trzsz to the remote server"`

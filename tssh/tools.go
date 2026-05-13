@@ -181,11 +181,6 @@ func toolsErrorExit(format string, a ...any) {
 	os.Exit(kExitCodeToolsError)
 }
 
-func printToolsHelp(title string) {
-	fmt.Print(lipgloss.NewStyle().Bold(true).Foreground(greenColor).Render(title) + "\r\n")
-	fmt.Print(lipgloss.NewStyle().Faint(true).Render(getText("tools/help")) + "\r\n\r\n")
-}
-
 type inputValidator struct {
 	validate func(string) error
 }
@@ -433,97 +428,6 @@ func promptPassword(promptLabel, helpMessage string, validator *inputValidator) 
 	return ""
 }
 
-type listModel struct {
-	promptLabel string
-	helpMessage string
-	cursor      int
-	items       []string
-	done        bool
-	quit        bool
-}
-
-func (m *listModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m *listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		switch keypress := msg.String(); keypress {
-		case "q", "ctrl+c":
-			m.quit = true
-			return m, tea.Quit
-		case "j", "tab", "down":
-			m.cursor++
-			if m.cursor >= len(m.items) {
-				m.cursor = 0
-			}
-		case "k", "shift+tab", "up":
-			m.cursor--
-			if m.cursor < 0 {
-				m.cursor = len(m.items) - 1
-			}
-		case "enter":
-			m.done = true
-			return m, tea.Quit
-		}
-	}
-	return m, nil
-}
-
-func (m *listModel) View() tea.View {
-	if m.done {
-		return tea.NewView("")
-	}
-	var builder strings.Builder
-	builder.WriteString(lipgloss.NewStyle().Foreground(cyanColor).Render(m.promptLabel+":") + "\n")
-	if m.helpMessage != "" {
-		builder.WriteString(lipgloss.NewStyle().Faint(true).Render(m.helpMessage) + "\n")
-	}
-	for i, item := range m.items {
-		if i == m.cursor {
-			builder.WriteString(lipgloss.NewStyle().Foreground(yellowColor).
-				Render(fmt.Sprintf("> %s", item)) + "\n")
-		} else {
-			builder.WriteString(lipgloss.NewStyle().Render(fmt.Sprintf("  %s", item)) + "\n")
-		}
-	}
-	builder.WriteString(lipgloss.NewStyle().Faint(true).
-		Render("Use ↓ ↑ j k or tab to navigate, Enter to choose.") + "\n")
-	return tea.NewView(builder.String())
-}
-
-func promptList(promptLabel, helpMessage string, listItems []string) string {
-	teaOpts, cancelReader := newTeaOptions(nil)
-	defer cancelReader()
-
-	m, err := tea.NewProgram(&listModel{
-		promptLabel: promptLabel,
-		helpMessage: helpMessage,
-		items:       listItems,
-	}, teaOpts...).Run()
-
-	if model, ok := m.(*listModel); err == nil && ok {
-		if model.quit {
-			cleanupOnExit()
-			os.Exit(0)
-		}
-		return model.items[model.cursor]
-	}
-	toolsErrorExit("input error: %v", err)
-	return ""
-}
-
-func isFileNotExistOrEmpty(path string) bool {
-	stat, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return true
-	} else if err != nil {
-		return false
-	}
-	return stat.Size() == 0
-}
-
 // execLocalTools execute local tools if necessary
 //
 // return true to quit with return code
@@ -532,8 +436,6 @@ func execLocalTools(args *sshArgs) (int, bool) {
 	switch {
 	case args.EncSecret:
 		return execEncodeSecret()
-	case args.NewHost || args.Destination == "" && isFileNotExistOrEmpty(userConfig.configPath):
-		return execNewHost(args)
 	case args.ListHosts:
 		return execListHosts()
 	default:
