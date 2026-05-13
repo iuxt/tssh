@@ -27,8 +27,7 @@ package main
 import (
 	"os"
 	"strings"
-
-	"github.com/trzsz/trzsz-ssh/tssh"
+	"trzsz-ssh/tssh"
 )
 
 func main() {

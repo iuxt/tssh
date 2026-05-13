@@ -72,7 +72,7 @@ func getTsshVersion() string {
 			}
 		} else {
 			_, file, _, _ := runtime.Caller(0)
-			if strings.Contains(filepath.ToSlash(file), "/pkg/mod/github.com/trzsz/trzsz-ssh@") {
+			if strings.Contains(filepath.ToSlash(file), "/pkg/mod/trzsz-ssh@") {
 				name := filepath.Base(filepath.Dir(filepath.Dir(file)))
 				re := regexp.MustCompile(`^trzsz-ssh@[^-]+-[^-]+-([0-9a-f]{12,})$`)
 				if match := re.FindStringSubmatch(name); len(match) == 2 {

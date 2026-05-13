@@ -44,7 +44,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/trzsz/trzsz-ssh/internal/ssh"
+	"trzsz-ssh/internal/ssh"
 	"golang.org/x/crypto/ssh"
 )
 

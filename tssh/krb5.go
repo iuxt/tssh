@@ -33,7 +33,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/trzsz/trzsz-ssh/internal/krb5"
+	"trzsz-ssh/internal/krb5"
 	"golang.org/x/crypto/ssh"
 )
 

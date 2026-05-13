@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/trzsz/trzsz-ssh/internal/table"
+	"trzsz-ssh/internal/table"
 )
 
 type promptTheme struct {

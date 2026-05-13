@@ -1,4 +1,4 @@
-module github.com/trzsz/trzsz-ssh
+module trzsz-ssh
 
 go 1.25.0
 
