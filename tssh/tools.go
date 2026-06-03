@@ -442,19 +442,3 @@ func execLocalTools(args *sshArgs) (int, bool) {
 		return 0, false
 	}
 }
-
-// execRemoteTools execute remote tools if necessary
-func execRemoteTools(sshConn *sshConnection) (int, bool) {
-	args := sshConn.param.args
-	if args.InstallTrzsz {
-		execInstallTrzsz(args, sshConn.client)
-	}
-	if args.InstallTsshd {
-		execInstallTsshd(args, sshConn.client)
-	}
-	if len(args.UploadFile.values) > 0 {
-		code := execTrzUpload(sshConn)
-		return code, true
-	}
-	return 0, false
-}

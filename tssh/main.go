@@ -421,11 +421,6 @@ func sshStart(args *sshArgs) (int, error) {
 		}
 	}
 
-	// execute remote tools if necessary
-	if code, quit := execRemoteTools(sshConn); quit {
-		return code, nil
-	}
-
 	// enable waypipe
 	if err := enableWaypipe(sshConn); err != nil {
 		warning("waypipe may not be working properly: %v", err)
@@ -455,13 +450,10 @@ func sshStart(args *sshArgs) (int, error) {
 		defer resetStdin(state)
 	}
 
-	// setup trzsz filter if necessary
-	if err := setupTrzszFilter(sshConn); err != nil {
-		return kExitCodeTrzszFailed, err
+	// setup transfer filter if necessary
+	if err := setupTransferFilter(sshConn); err != nil {
+		return kExitCodeTransferFilterFailed, err
 	}
-
-	// setup udp notification if necessary
-	setupUdpNotification(sshConn)
 
 	// forward standard input output
 	forwardStdio(sshConn)

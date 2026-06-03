@@ -58,7 +58,6 @@ type sshParam struct {
 	command string
 	control bool
 	proxy   *proxyJump
-	udpMode udpModeType
 	ipv4    bool
 	ipv6    bool
 }
@@ -246,9 +245,6 @@ func getSshParam(args *sshArgs, proxy bool) (*sshParam, error) {
 		}
 		param.proxies[i] = expandedProxy
 	}
-
-	// udp mode
-	param.udpMode = getUdpMode(args)
 
 	return param, nil
 }
@@ -601,7 +597,7 @@ func connectDirectly(param *sshParam, config *ssh.ClientConfig) (SshClient, erro
 	return sshNewClient(ncc, chans, reqs), nil
 }
 
-func tcpLogin(param *sshParam, proxy *proxyJump, requireUDP udpModeType) (SshClient, error) {
+func tcpLogin(param *sshParam, proxy *proxyJump) (SshClient, error) {
 	// ssh multiplexing
 	if client := connectViaControl(param); client != nil {
 		param.control = true
@@ -636,26 +632,12 @@ func tcpLogin(param *sshParam, proxy *proxyJump, requireUDP udpModeType) (SshCli
 		return client, err
 	}
 
-	// has proxies
-	udpModes := make([]udpModeType, len(param.proxies))
-	for i := len(param.proxies) - 1; i >= 0; i-- { // init proxy udp mode
-		proxyArgs := &sshArgs{Destination: param.proxies[i]}
-		udpMode := getUdpMode(proxyArgs)
-		if requireUDP != kUdpModeNo && udpMode == kUdpModeNo {
-			udpMode = requireUDP
-		}
-		if requireUDP == kUdpModeNo && udpMode != kUdpModeNo {
-			initGlobalUdpAliveTimeout(proxyArgs)
-			requireUDP = udpMode
-		}
-		udpModes[i] = udpMode
-	}
-	for i, proxyName := range param.proxies { // proxy login
+	for _, proxyName := range param.proxies { // proxy login
 		proxyParam, err := getSshParam(&sshArgs{Destination: proxyName}, true)
 		if err != nil {
 			return nil, err
 		}
-		proxyClient, err := sshLogin(proxyParam, proxy, udpModes[i])
+		proxyClient, err := sshLogin(proxyParam, proxy)
 		if err != nil {
 			return nil, err
 		}
@@ -666,31 +648,12 @@ func tcpLogin(param *sshParam, proxy *proxyJump, requireUDP udpModeType) (SshCli
 	return client, err
 }
 
-func sshLogin(param *sshParam, proxy *proxyJump, requireUDP udpModeType) (SshClient, error) {
-	// init udp mode
-	if requireUDP != kUdpModeNo && param.udpMode == kUdpModeNo {
-		param.udpMode = requireUDP
-	}
-	if requireUDP == kUdpModeNo && param.udpMode != kUdpModeNo {
-		initGlobalUdpAliveTimeout(param.args)
-		requireUDP = param.udpMode
-	}
-
+func sshLogin(param *sshParam, proxy *proxyJump) (SshClient, error) {
 	// setup log level
 	resetLogLevel := setupLogLevel(param.args)
 	defer resetLogLevel()
 
-	// tcp login
-	tcpClient, err := tcpLogin(param, proxy, requireUDP)
-	if err != nil {
-		return nil, err
-	}
-	if param.udpMode == kUdpModeNo {
-		return tcpClient, nil
-	}
-
-	// udp login
-	return udpLogin(param, tcpClient)
+	return tcpLogin(param, proxy)
 }
 
 func keepAlive(sshConn *sshConnection) {
@@ -794,7 +757,7 @@ func sshConnect(args *sshArgs) (*sshConnection, error) {
 	}
 
 	// ssh login
-	client, err := sshLogin(param, nil, kUdpModeNo)
+	client, err := sshLogin(param, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -808,13 +771,8 @@ func sshConnect(args *sshArgs) (*sshConnection, error) {
 		tty:      tty,
 	}
 
-	// init global sshConn for udp mode
-	if lastJumpUdpClient != nil {
-		lastJumpUdpClient.sshConn.Store(sshConn)
-	}
-
 	// tcp keep alive
-	if !param.control && param.udpMode == kUdpModeNo {
+	if !param.control {
 		keepAlive(sshConn)
 	}
 

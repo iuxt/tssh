@@ -48,7 +48,7 @@ func isRemoteSshEnv(pid int) bool {
 		}
 
 		name := filepath.Base(windows.UTF16ToString(path[:pathLen]))
-		if name == "sshd.exe" || name == "tsshd.exe" {
+		if name == "sshd.exe" {
 			return true
 		}
 

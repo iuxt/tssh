@@ -47,29 +47,24 @@ import (
 )
 
 const (
-	kExitCodeArgsInvalid = 11
-	kExitCodeUserConfig  = 12
-	kExitCodeSetupWinVT  = 13
-	kExitCodeNoDestHost  = 14
-	kExitCodeBackground  = 15
-	kExitCodeLoginFailed = 16
-	kExitCodeIoFwFailed  = 17
-	kExitCodeSubFwFailed = 18
-	kExitCodeStartFailed = 19
-	kExitCodeShellFailed = 20
-	kExitCodeStdinFailed = 21
-	kExitCodeTrzszFailed = 22
-	kExitCodeOpenSession = 23
-	kExitCodeReconnect   = 24
+	kExitCodeArgsInvalid          = 11
+	kExitCodeUserConfig           = 12
+	kExitCodeSetupWinVT           = 13
+	kExitCodeNoDestHost           = 14
+	kExitCodeBackground           = 15
+	kExitCodeLoginFailed          = 16
+	kExitCodeIoFwFailed           = 17
+	kExitCodeSubFwFailed          = 18
+	kExitCodeStartFailed          = 19
+	kExitCodeShellFailed          = 20
+	kExitCodeStdinFailed          = 21
+	kExitCodeTransferFilterFailed = 22
+	kExitCodeOpenSession          = 23
+	kExitCodeReconnect            = 24
 
 	kExitCodeToolsError  = 101
-	kExitCodeTrzPreError = 102
-	kExitCodeTrzRunError = 103
-	kExitCodeTrzRetError = 104
 	kExitCodeJsonMarshal = 105
 
-	kExitCodeUdpCtrlC    = 201
-	kExitCodeUdpTimeout  = 202
 	kExitCodeConsoleKill = 203
 	kExitCodeForceExit   = 204
 	kExitCodeKeepAlive   = 205

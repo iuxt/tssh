@@ -77,28 +77,12 @@ type sshArgs struct {
 	NoX11Forward   bool        `arg:"-x,--" help:"disables X11 forwarding"`
 	X11Trusted     bool        `arg:"-Y,--" help:"enables trusted X11 forwarding"`
 	Reconnect      bool        `arg:"--reconnect" help:"reconnect or restart after process exits"`
-	DragFile       bool        `arg:"--dragfile" help:"enable drag files and directories to upload"`
-	TraceLog       bool        `arg:"--tracelog" help:"enable trzsz detect trace logs for debugging"`
-	Relay          bool        `arg:"--relay" help:"force trzsz run as a relay on the jump server"`
-	Client         bool        `arg:"--client" help:"force trzsz run as a client on the jump server"`
+	DragFile       bool        `arg:"--dragfile" help:"enable drag files to upload"`
+	TraceLog       bool        `arg:"--tracelog" help:"enable transfer detect trace logs for debugging"`
 	Debug          bool        `arg:"--debug" help:"verbose mode for debugging, same as ssh's -vvv"`
-	Zmodem         bool        `arg:"--zmodem" help:"enable zmodem lrzsz ( rz / sz ) feature"`
 	Dns            string      `arg:"--dns" placeholder:"[udp://|tcp://]host[:port]" help:"custom DNS server"`
-	UDP            bool        `arg:"--udp" help:"ssh over UDP like mosh (default: QUIC)"`
-	KCP            bool        `arg:"--kcp" help:"[udp] use KCP protocol for ssh over UDP"`
-	TsshdPath      string      `arg:"--tsshd-path" placeholder:"path" help:"[udp] tsshd absolute path on the server"`
-	TsshdPort      string      `arg:"--tsshd-port" placeholder:"low-high" help:"[udp] port range that tsshd listens on"`
 	EncSecret      bool        `arg:"--enc-secret" help:"[tools] encode secret for configuration"`
 	ListHosts      bool        `arg:"--list-hosts" help:"[tools] list all hosts in configuration"`
-	InstallTrzsz   bool        `arg:"--install-trzsz" help:"[tools] install trzsz to the remote server"`
-	InstallTsshd   bool        `arg:"--install-tsshd" help:"[tools] install tsshd to the remote server"`
-	InstallPath    string      `arg:"--install-path" placeholder:"path" help:"[tools] install path, default: '~/.local/bin/'"`
-	TrzszVersion   string      `arg:"--trzsz-version" placeholder:"x.x.x" help:"[tools] install the specified version of trzsz"`
-	TrzszBinPath   string      `arg:"--trzsz-bin-path" placeholder:"path" help:"[tools] trzsz binary installation package path"`
-	TsshdVersion   string      `arg:"--tsshd-version" placeholder:"x.x.x" help:"[tools] install the specified version of tsshd"`
-	TsshdBinPath   string      `arg:"--tsshd-bin-path" placeholder:"path" help:"[tools] tsshd binary installation package path"`
-	UploadFile     multiStr    `arg:"--upload-file" placeholder:"path" help:"[tools] upload the local file to remote server"`
-	DownloadPath   string      `arg:"--download-path" placeholder:"path" help:"[tools] the local saving path for downloading"`
 	originalDest   string
 }
 

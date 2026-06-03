@@ -144,7 +144,5 @@ func sshAgentForward(sshConn *sshConnection) {
 		warning("The agent forwarding request was denied. Check [AllowAgentForwarding, DisableForwarding] in [/etc/ssh/sshd_config] on the server.")
 		return
 	}
-	if sshConn.param.udpMode == kUdpModeNo {
-		debug("request ssh agent forwarding success")
-	}
+	debug("request ssh agent forwarding success")
 }

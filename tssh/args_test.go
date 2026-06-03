@@ -85,29 +85,8 @@ func TestSshArgs(t *testing.T) {
 	assertArgsEqual("--reconnect", sshArgs{Reconnect: true})
 	assertArgsEqual("--dragfile", sshArgs{DragFile: true})
 	assertArgsEqual("--tracelog", sshArgs{TraceLog: true})
-	assertArgsEqual("--relay", sshArgs{Relay: true})
-	assertArgsEqual("--client", sshArgs{Client: true})
 	assertArgsEqual("--debug", sshArgs{Debug: true})
-	assertArgsEqual("--zmodem", sshArgs{Zmodem: true})
-
-	assertArgsEqual("--udp", sshArgs{UDP: true})
-	assertArgsEqual("--kcp", sshArgs{KCP: true})
-	assertArgsEqual("--tsshd-path /usr/bin/tsshd", sshArgs{TsshdPath: "/usr/bin/tsshd"})
-	assertArgsEqual("--tsshd-port 10000-11000", sshArgs{TsshdPort: "10000-11000"})
-
 	assertArgsEqual("--enc-secret", sshArgs{EncSecret: true})
-	assertArgsEqual("--install-trzsz", sshArgs{InstallTrzsz: true})
-	assertArgsEqual("--install-tsshd", sshArgs{InstallTsshd: true})
-	assertArgsEqual("--install-trzsz --install-path /bin", sshArgs{InstallTrzsz: true, InstallPath: "/bin"})
-	assertArgsEqual("--install-trzsz --trzsz-version 1.1.6", sshArgs{InstallTrzsz: true, TrzszVersion: "1.1.6"})
-	assertArgsEqual("--install-trzsz --trzsz-bin-path a.tgz", sshArgs{InstallTrzsz: true, TrzszBinPath: "a.tgz"})
-	assertArgsEqual("--install-tsshd --install-path /bin", sshArgs{InstallTsshd: true, InstallPath: "/bin"})
-	assertArgsEqual("--install-tsshd --tsshd-version 0.1.2", sshArgs{InstallTsshd: true, TsshdVersion: "0.1.2"})
-	assertArgsEqual("--install-tsshd --tsshd-bin-path b.tgz", sshArgs{InstallTsshd: true, TsshdBinPath: "b.tgz"})
-
-	assertArgsEqual("--upload-file /tmp/1", sshArgs{UploadFile: multiStr{[]string{"/tmp/1"}}})
-	assertArgsEqual("--upload-file /tmp/1 --upload-file /tmp/2", sshArgs{UploadFile: multiStr{[]string{"/tmp/1", "/tmp/2"}}})
-	assertArgsEqual("--download-path ~/Downloads", sshArgs{DownloadPath: "~/Downloads"})
 
 	assertArgsEqual("dest", sshArgs{Destination: "dest"})
 	assertArgsEqual("dest cmd", sshArgs{Destination: "dest", Command: "cmd"})
@@ -125,7 +104,9 @@ func TestSshArgs(t *testing.T) {
 		p, err := arg.NewParser(arg.Config{}, &args)
 		assert.Nil(err)
 		err = p.Parse(strings.Split(cmdline, " "))
-		assert.NotNil(err)
+		if err == nil {
+			t.Fatalf("%s expected error containing %q, got nil", cmdline, errMsg)
+		}
 		assert.Contains(err.Error(), errMsg)
 		return err
 	}
@@ -133,6 +114,22 @@ func TestSshArgs(t *testing.T) {
 	_ = assertArgsError("-D", "missing value for -D")
 	_ = assertArgsError("-L", "missing value for -L")
 	_ = assertArgsError("-R", "missing value for -R")
+	_ = assertArgsError("--zmodem", "unknown argument")
+	_ = assertArgsError("--relay", "unknown argument")
+	_ = assertArgsError("--client", "unknown argument")
+	_ = assertArgsError("--install-trzsz", "unknown argument")
+	_ = assertArgsError("--trzsz-version 1.1.6", "unknown argument")
+	_ = assertArgsError("--trzsz-bin-path a.tgz", "unknown argument")
+	_ = assertArgsError("--udp", "unknown argument")
+	_ = assertArgsError("--kcp", "unknown argument")
+	_ = assertArgsError("--tsshd-path /usr/bin/tsshd", "unknown argument")
+	_ = assertArgsError("--tsshd-port 10000-11000", "unknown argument")
+	_ = assertArgsError("--install-tsshd", "unknown argument")
+	_ = assertArgsError("--install-path /bin", "unknown argument")
+	_ = assertArgsError("--tsshd-version 0.1.2", "unknown argument")
+	_ = assertArgsError("--tsshd-bin-path b.tgz", "unknown argument")
+	_ = assertArgsError("--upload-file /tmp/1", "unknown argument")
+	_ = assertArgsError("--download-path ~/Downloads", "unknown argument")
 
 	if got := assertArgsError("-v", arg.ErrVersion.Error()); got != arg.ErrVersion {
 		t.Errorf("-v expected error %v, got %v", arg.ErrVersion, got)
@@ -174,9 +171,9 @@ func TestForwardArgs(t *testing.T) {
 	assertLRForwardNil := func(argument string, bindAddr *string, bindPort int, destHost string, destPort int) {
 		t.Helper()
 		assertLRFwd("-L", argument, sshArgs{LocalForward: forwardArgs{[]*forwardCfg{
-			{false, argument, bindAddr, bindPort, destHost, destPort}}}})
+			{argument, bindAddr, bindPort, destHost, destPort}}}})
 		assertLRFwd("-R", argument, sshArgs{RemoteForward: forwardArgs{[]*forwardCfg{
-			{false, argument, bindAddr, bindPort, destHost, destPort}}}})
+			{argument, bindAddr, bindPort, destHost, destPort}}}})
 	}
 	assertLRForward := func(argument string, bindAddr string, bindPort int, destHost string, destPort int) {
 		t.Helper()

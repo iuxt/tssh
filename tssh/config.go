@@ -797,7 +797,7 @@ func getPromptPageSize() int {
 func getPromptDetailItems() []string {
 	promptDetailItems := userConfig.promptDetailItems
 	if promptDetailItems == "" {
-		promptDetailItems = "Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand UdpMode TsshdPath"
+		promptDetailItems = "Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand"
 	}
 	return strings.Fields(promptDetailItems)
 }

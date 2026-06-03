@@ -7,21 +7,15 @@
 
 trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the openssh client. It aims to provide complete compatibility with openssh, mirroring all its features, while also offering additional useful features not found in the openssh client.
 
-trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports intermittent connectivity, allows roaming, and can be used on high-latency links such as cellular data connections, unstable Wi-Fi, etc.
-
 ### Why to do
 
 - `tssh` login prompt supports searching and selecting the servers to log in to, if you can't remember them.
 
-- `tssh` has built-in support for [trzsz](https://trzsz.github.io/) ( trz / tsz ), no longer need to open a new session to transfer files.
+- `tssh` has built-in support for lrzsz zmodem ( rz / sz ), no longer need to open a new session to transfer files.
 
 - `tssh` supports multiple selection and batch login, and supports executing the preset remote command.
 
 - `tssh` supports remember password, supports automated interaction, improving your login efficiency.
-
-- `tssh` instead of `trzsz ssh` on Windows, solves the issue of slow upload speed of `trz` on Windows.
-
-- `tssh` with [tsshd](https://github.com/trzsz/tsshd) are similar to mosh, solved some of mosh's issues, such as SSH forwarding and ProxyJump.
 
 ### Installation
 
@@ -353,68 +347,9 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
 
 - For supported color enumerations, please refer to [lipgloss](https://github.com/charmbracelet/lipgloss#colors), except `help_tips` and `shortcuts` are the same as the `tiny theme`.
 
-### Support trzsz
+### Support lrzsz zmodem
 
-- [trzsz](https://trzsz.github.io/) needs to be installed on the server to use `trz / tsz` for uploading and downloading files. Choose either the [Go version](https://trzsz.github.io/go) ( ⭐ Recommended ), [Py version](https://trzsz.github.io/), or [Js version](https://trzsz.github.io/js).
-
-- In the `~/.ssh/config` or `ExConfigPath` configuration file, configure `EnableDragFile` to `Yes` to enable the drag and drop to upload feature.
-
-  ```
-  Host *
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
-    EnableDragFile Yes
-  ```
-
-- If you want to overwrite the existing files when dragging files to upload, configure `DragFileUploadCommand` to `trz -y`:
-
-  ```
-  Host xxx
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
-    DragFileUploadCommand trz -y
-  ```
-
-- If you want to temporarily enable the drag and drop to upload feature, use `tssh --dragfile` to log in.
-
-- In the `~/.ssh/config` or `ExConfigPath` configuration file, configure `EnableTrzsz` to `No` to disable the trzsz and zmodem feature.
-
-  ```
-  Host no_trzsz_nor_zmodem
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
-    EnableTrzsz No
-  ```
-
-- You can use the `--upload-file` argument to specify file or directory to upload directly in the command line, and you can specify the `trz` upload command arguments and save path after the server, such as:
-
-  ```sh
-  tssh --upload-file /path/to/file1 --upload-file /path/to/dir2 xxx_server '~/.local/bin/trz -d /tmp/'
-  ```
-
-- You can use `tsz` in the command line to directly download files and directories to your local computer. You can also use the `--download-path` argument to specify the path for local saving, such as:
-
-  ```sh
-  tssh -t --client --download-path /tmp/ xxx_server 'tsz -d /path/to/file1 /path/to/dir2'
-  ```
-
-![tssh trzsz](https://trzsz.github.io/images/tssh_trzsz.gif)
-
-### Support zmodem
-
-- In the `~/.ssh/config` or `ExConfigPath` configuration file, configure `EnableZmodem` to `Yes` to enable the zmodem ( rz / sz ) feature.
-
-  ```
-  Host *
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
-    EnableZmodem Yes
-  ```
-
-- If you want to use `rz` to upload when dragging files, configure `DragFileUploadCommand` to `rz`:
-
-  ```
-  Host xxx
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
-    EnableDragFile Yes
-    DragFileUploadCommand rz
-  ```
+- The zmodem ( rz / sz ) feature is enabled by default.
 
 - Not only the server, but also the local computer needs to install `lrzsz`. For Windows, you can download from [lrzsz-win32](https://github.com/trzsz/lrzsz-win32/releases), unzip and add to `PATH` environment, or install it as follows:
 
@@ -422,27 +357,36 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
   scoop install lrzsz / choco install lrzsz / winget install lrzsz
   ```
 
-- If you want to temporarily enable the zmodem ( rz / sz ) feature, use `tssh --zmodem` to log in.
+- In the `~/.ssh/config` or `ExConfigPath` configuration file, configure `EnableDragFile` to `Yes` to enable the drag and drop to upload feature.
+
+  ```
+  Host *
+    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    EnableDragFile Yes
+    DragFileUploadCommand rz
+  ```
+
+- If you want to temporarily enable the drag and drop to upload feature, use `tssh --dragfile` to log in.
+
+- In the `~/.ssh/config` or `ExConfigPath` configuration file, configure `EnableZmodem` to `No` to disable the zmodem ( rz / sz ) feature.
+
+  ```
+  Host no_zmodem
+    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    EnableZmodem No
+  ```
 
 - About the progress, the transferred and speed are not precise. It just indicating that the transfer is in progress.
 
-- You can use the `--upload-file` argument to specify file to upload directly in the command line, and `cd` to the save path and specify the `rz` command with arguments after the server, such as:
+- You can use `sz` in the command line to directly download files to your local computer, such as:
 
   ```sh
-  tssh --upload-file /path/to/file1 --upload-file /path/to/file2 xxx_server 'cd /tmp/ && rz -yeb'
-  ```
-
-- You can use `sz` in the command line to directly download files to your local computer. You can also use the `--download-path` argument to specify the path for local saving, such as:
-
-  ```sh
-  tssh -t --client --zmodem --download-path /tmp/ xxx_server 'sz /path/to/file1 /path/to/file2'
+  tssh -t xxx_server 'sz /path/to/file1 /path/to/file2'
   ```
 
 ### Support scp sftp
 
 - Using the `Remember Password` feature of `tssh`, you no longer need to manually enter your password. The same applies to `scp` and `sftp`.
-
-- Using the `UDP Mode` feature of `tssh`, the SSH session uses an encrypted UDP channel for communication. The same applies to `scp` and `sftp`.
 
 - As long as `scp` and `sftp` use the `-S` option to specify `tssh`, or configure an alias, you can use some of the features provided by `tssh`, such as:
 
@@ -764,16 +708,16 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
   # Extended configuration path, the default is ~/.ssh/password
   ExConfigPath = ~/.ssh/password
 
-  # The default path of the file dialog for trz uploading, the default is empty which opening the last path.
+  # The default path of the file dialog for uploading, the default is empty which opening the last path.
   DefaultUploadPath = ~/Downloads
 
-  # The automatically save path for tsz downloading, the default is empty which poping up a folder dialog.
+  # The automatically save path for downloading, the default is empty which poping up a folder dialog.
   DefaultDownloadPath = ~/Downloads
 
   # The global drag file upload command, note that the priority configured in ~/.ssh/config is higher.
-  DragFileUploadCommand = trz -y
+  DragFileUploadCommand = rz
 
-  # The trzsz progress bar will gradient from the first color to the second color. Don't include `#`.
+  # The transfer progress bar will gradient from the first color to the second color. Don't include `#`.
   ProgressColorPair = B14FFF 00FFA3
 
   # When searching and selecting servers with tssh, the theme and colors.
@@ -787,7 +731,7 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
   PromptDefaultMode = search
 
   # When searching and selecting servers with tssh, the items displayed in details. The default is as follows:
-  PromptDetailItems = Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand UdpMode TsshdPath
+  PromptDetailItems = Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand
 
   # When searching and selecting servers with tssh, you can customize the cursor and selected icon:
   PromptCursorIcon = 🧨
@@ -891,22 +835,6 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
     encQuestionAnswer1 93956f6e7e9f2aef3af7d6a61f7046dddf14aa4bbd9845dbb836fe3782b62ac0d89f
   ```
 
-- Run `tssh --install-trzsz` to install [trzsz](https://github.com/trzsz/trzsz-go) to the server automatically.
-
-  - It is installed to the `~/.local/bin/` directory by default. You can specify the installation directory through `--install-path /path/to/install`.
-  - If the `--install-path` installation directory contains `~/`, single quotes must be added, such as `--install-path '~/path'`.
-  - If obtaining the latest version of `trzsz` fails, you can specify it through `--trzsz-version x.x.x`.
-  - If downloading the `trzsz` installation package fails, you can download and specify it through `--trzsz-bin-path /path/to/trzsz.tar.gz`.
-  - Note: `--install-trzsz` does not support Windows server, and does not support jump server (unless using `ProxyJump`).
-
-- Run `tssh --install-tsshd` to install [tsshd](https://github.com/trzsz/tsshd) to the server automatically.
-
-  - It is installed to the `~/.local/bin/` directory by default. You can specify the installation directory through `--install-path /path/to/install`.
-  - If the `--install-path` installation directory contains `~/`, single quotes must be added, such as `--install-path '~/path'`.
-  - If obtaining the latest version of `tsshd` fails, you can specify it through `--tsshd-version x.x.x`.
-  - If downloading the `tsshd` installation package fails, you can download and specify it through `--tsshd-bin-path /path/to/tsshd.tar.gz`.
-  - Note: `--install-tsshd` does not support Windows server, and does not support jump server (unless using `ProxyJump`).
-
 - About changing the terminal title, it can be achieved without `tssh`. It only needs to be configured in the server's shell configuration file (such as `~/.bashrc`):
 
   ```sh
@@ -938,92 +866,7 @@ trzsz-ssh ( tssh ) with [tsshd](https://github.com/trzsz/tsshd) also supports in
 
 - In background mode (use `-f`), use `--reconnect` to automatically restart the tssh process and log in to the remote server when it exits.
 
-- **Note:** `--reconnect` only restarts the tssh process and logs in; it does **not** resume the previous SSH session. To resume an existing session, please use UDP mode described below.
-
-### UDP Mode
-
-- Install [tsshd](https://github.com/trzsz/tsshd?tab=readme-ov-file#installation) on the server, use `tssh --udp xxx` to log in (latency-sensitive users can specify `--kcp` option), or configure as follows in `~/.ssh/config` to omit `--udp` or `--kcp` option:
-
-  ```
-  Host xxx
-      #!! UdpMode  ( Yes | QUIC | KCP )
-  ```
-
-- The `tssh` plays the role of `ssh` on the client side, while the `tsshd` acts as `sshd` on the server side.
-
-- The `tssh` first logs in to the server normally as an ssh client, and then starts a new `tsshd` process on the server, where each session has its own `tsshd` process.
-
-- The `tsshd` process listens on a random UDP port in the range 61001–61999 (configurable via `TsshdPort`), and sends the port number and session secret keys back to the `tssh` process through the SSH channel. The SSH connection is then closed, and `tssh` communicates with `tsshd` over UDP.
-
-### UDP Configurations
-
-```
-Host xxx
-    #!! UdpMode Yes
-    #!! TsshdPort 61001-61999
-    #!! TsshdPath ~/go/bin/tsshd
-    #!! UdpAliveTimeout 86400
-    #!! UdpHeartbeatTimeout 3
-    #!! UdpReconnectTimeout 15
-    #!! ShowNotificationOnTop yes
-    #!! ShowFullNotifications yes
-    #!! UdpProxyMode UDP
-    #!! UdpMTU 1400
-```
-
-- `UdpMode`: `No` (the default: tssh works in TCP mode), `Yes` (default protocol: `QUIC`), `QUIC` ([QUIC](https://github.com/quic-go/quic-go) protocol: faster speed), `KCP` ([KCP](https://github.com/xtaci/kcp-go) protocol: lower latency).
-
-- `TsshdPort`: Specifies the port range that tsshd listens on, default is [61001, 61999]. You can specify multiple discrete ports (e.g., `6022,7022`) or multiple discrete ranges (e.g., `8010-8020,9020-9030,10080`); tsshd will randomly choose an available port. You can also specify the port on the command line using `--tsshd-port`.
-
-- `TsshdPath`: Specifies the path to the tsshd binary on the server, lookup in $PATH if not configured. You can also specify the path on the command line using `--tsshd-path`.
-
-- `UdpAliveTimeout`: If the disconnection lasts longer than `UdpAliveTimeout` in seconds, tssh and tsshd will both exit, and no longer support reconnection. The default is 86400 seconds.
-
-- `UdpHeartbeatTimeout`: If the disconnection lasts longer than `UdpHeartbeatTimeout` in seconds, tssh will try to reconnect to the server by a new path. The default is 3 seconds.
-
-- `UdpReconnectTimeout`: If the disconnection lasts longer than `UdpReconnectTimeout` in seconds, tssh will display a notification indicating that the connection has been lost. The default is 15 seconds.
-
-- `ShowNotificationOnTop`: Whether the connection loss notification is displayed on the top. The default is yes, which may overwrite some of the previous output. Set it to `No` to display notifications on the current line of the cursor.
-
-- `ShowFullNotifications`: Whether to display the full notifications or a brief notification. The default is yes, which may output several lines to the screen. Set it to `No` will output only one line.
-
-- `UdpProxyMode`: The default transport protocol is `UDP`. If `UDP` traffic is blocked by firewalls in your network environment, you can set it to `TCP` to work around the restriction, though this may introduce additional latency.
-
-- `UdpMTU`: Sets the maximum transmission unit (MTU) for UDP packets. Default is 1400.
-
-### UDP Port Forwarding
-
-When running in UDP mode, UDP port forwarding is supported.
-
-- Command-line `-L` / `-R` options are extended with a `udp/` prefix (the `/` can also be replaced with `:`, `_`, or `-`):
-
-  ```
-  -L udp/[bind_address:]port:host:hostport
-  -L udp:[bind_address:]port:/remote_socket
-  -L udp_/local_socket:host:hostport
-  -L udp-/local_socket:/remote_socket
-
-  -R udp/[bind_address:]port:host:hostport
-  -R udp:[bind_address:]port:/local_socket
-  -R udp_/remote_socket:host:hostport
-  -R udp-/remote_socket:/local_socket
-  ```
-
-- Configuration is similar to `LocalForward` and `RemoteForward`, with an added `UDP` prefix (case-insensitive):
-
-  ```
-  UdpLocalForward [bind_address:]port host:hostport
-  UdpLocalForward [bind_address:]port /remote_socket
-  UdpLocalForward /local_socket host:hostport
-  UdpLocalForward /local_socket /remote_socket
-
-  UdpRemoteForward [bind_address:]port host:hostport
-  UdpRemoteForward [bind_address:]port /local_socket
-  UdpRemoteForward /remote_socket host:hostport
-  UdpRemoteForward /remote_socket /local_socket
-  ```
-
-- `ForwardUdpTimeout`: Sets the idle timeout for UDP forwarding sessions; the corresponding forwarding session will be cleared automatically if no data is sent or received within this period to free resources. Default is 5 minutes.
+- **Note:** `--reconnect` only restarts the tssh process and logs in; it does **not** resume the previous SSH session.
 
 ### Trouble shooting
 

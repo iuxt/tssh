@@ -42,7 +42,7 @@ func isRemoteSshEnv(pid int) bool {
 
 		name := kinfo.Proc.P_comm[:]
 		idx := bytes.IndexByte(name, '\x00')
-		if idx > 0 && (bytes.Equal(name[:idx], []byte("sshd")) || bytes.Equal(name[:idx], []byte("tsshd"))) {
+		if idx > 0 && bytes.Equal(name[:idx], []byte("sshd")) {
 			return true
 		}
 

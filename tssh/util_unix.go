@@ -52,7 +52,7 @@ func isRemoteSshEnv(pid int) bool {
 			return false
 		}
 
-		if bytes.Equal(stat[:idx], []byte("sshd")) || bytes.Equal(stat[:idx], []byte("tsshd")) {
+		if bytes.Equal(stat[:idx], []byte("sshd")) {
 			return true
 		}
 

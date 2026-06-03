@@ -51,7 +51,7 @@ func sshX11Forward(sshConn *sshConnection) {
 		return
 	}
 
-	if sshConn.param.control && sshConn.param.udpMode == kUdpModeNo {
+	if sshConn.param.control {
 		warning("X11 forwarding is not supported when logging in via a control socket")
 		return
 	}
@@ -132,9 +132,7 @@ func sshX11Forward(sshConn *sshConnection) {
 		return
 	}
 
-	if sshConn.param.udpMode == kUdpModeNo {
-		debug("request ssh X11 forwarding success")
-	}
+	debug("request ssh X11 forwarding success")
 
 	go func() {
 		x11Timeout := time.Now().Add(time.Duration(timeout) * time.Second)

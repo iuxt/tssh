@@ -36,8 +36,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/quic-go/quic-go"
-	"github.com/trzsz/tsshd/tsshd"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -52,7 +50,6 @@ func (b *bindCfg) String() string {
 }
 
 type forwardCfg struct {
-	udp      bool
 	argument string
 	bindAddr *string
 	bindPort int
@@ -109,7 +106,7 @@ func parseBindCfg(str string) (*bindCfg, error) {
 	return nil, fmt.Errorf("invalid bind specification: %s", str)
 }
 
-func parseForwardCfg(param *sshParam, udp bool, str string) (*forwardCfg, error) {
+func parseForwardCfg(param *sshParam, str string) (*forwardCfg, error) {
 	expandedStr, err := expandTokens(str, param, "%CdhijkLlnpru")
 	if err != nil {
 		return nil, fmt.Errorf("expand forwarding config [%s] failed: %v", str, err)
@@ -130,7 +127,7 @@ func parseForwardCfg(param *sshParam, udp bool, str string) (*forwardCfg, error)
 		if err != nil {
 			return nil, fmt.Errorf("invalid forwarding config [%s]: %v", str, err)
 		}
-		return &forwardCfg{udp, str, bindCfg.addr, bindCfg.port, host, int(dPort)}, nil
+		return &forwardCfg{str, bindCfg.addr, bindCfg.port, host, int(dPort)}, nil
 	}
 
 	dest := tokens[1]
@@ -150,36 +147,14 @@ func parseForwardCfg(param *sshParam, udp bool, str string) (*forwardCfg, error)
 	}
 
 	if unixSocketRegexp.MatchString(dest) {
-		return &forwardCfg{udp, str, bindCfg.addr, bindCfg.port, dest, -1}, nil
+		return &forwardCfg{str, bindCfg.addr, bindCfg.port, dest, -1}, nil
 	}
 
 	return nil, fmt.Errorf("invalid forwarding config: %s", str)
 }
 
-func isUdpPrefix(str string) bool {
-	if len(str) < 4 {
-		return false
-	}
-	if str[0] != 'u' && str[0] != 'U' {
-		return false
-	}
-	if str[1] != 'd' && str[1] != 'D' {
-		return false
-	}
-	if str[2] != 'p' && str[2] != 'P' {
-		return false
-	}
-	return str[3] == '/' || str[3] == ':' || str[3] == '-' || str[3] == '_'
-}
-
 func parseForwardArg(str string) (*forwardCfg, error) {
 	str = strings.TrimSpace(str)
-
-	udp := isUdpPrefix(str)
-	val := str
-	if udp {
-		val = str[4:]
-	}
 
 	newForwardCfg := func(bindAddr *string, bindPort *string, destHost string, destPort *string) (*forwardCfg, error) {
 		bPort, dPort := -1, -1
@@ -197,10 +172,10 @@ func parseForwardArg(str string) (*forwardCfg, error) {
 			}
 			dPort = int(v)
 		}
-		return &forwardCfg{udp, str, bindAddr, int(bPort), destHost, int(dPort)}, nil
+		return &forwardCfg{str, bindAddr, int(bPort), destHost, int(dPort)}, nil
 	}
 
-	tokens := strings.Split(val, "/")
+	tokens := strings.Split(str, "/")
 	if len(tokens) == 3 && portOnlyRegexp.MatchString(tokens[0]) && portOnlyRegexp.MatchString(tokens[2]) {
 		return newForwardCfg(nil, &tokens[0], tokens[1], &tokens[2])
 	}
@@ -208,24 +183,24 @@ func parseForwardArg(str string) (*forwardCfg, error) {
 		return newForwardCfg(&tokens[0], &tokens[1], tokens[2], &tokens[3])
 	}
 
-	match := doubleIPv6Regexp.FindStringSubmatch(val)
+	match := doubleIPv6Regexp.FindStringSubmatch(str)
 	if len(match) == 5 {
 		return newForwardCfg(&match[1], &match[2], match[3], &match[4])
 	}
-	match = firstIPv6Regexp.FindStringSubmatch(val)
+	match = firstIPv6Regexp.FindStringSubmatch(str)
 	if len(match) == 5 {
 		return newForwardCfg(&match[1], &match[2], match[3], &match[4])
 	}
-	match = secondIPv6Regexp.FindStringSubmatch(val)
+	match = secondIPv6Regexp.FindStringSubmatch(str)
 	if len(match) == 5 {
 		return newForwardCfg(&match[1], &match[2], match[3], &match[4])
 	}
-	match = middleIPv6Regexp.FindStringSubmatch(val)
+	match = middleIPv6Regexp.FindStringSubmatch(str)
 	if len(match) == 4 {
 		return newForwardCfg(nil, &match[1], match[2], &match[3])
 	}
 
-	tokens = strings.Split(val, ":")
+	tokens = strings.Split(str, ":")
 	if len(tokens) == 3 && portOnlyRegexp.MatchString(tokens[0]) && portOnlyRegexp.MatchString(tokens[2]) {
 		return newForwardCfg(nil, &tokens[0], tokens[1], &tokens[2])
 	}
@@ -266,10 +241,6 @@ func isClosedError(err error) bool {
 	if errors.Is(err, io.ErrClosedPipe) {
 		return true
 	}
-	var qse *quic.StreamError
-	if errors.As(err, &qse) && qse.ErrorCode == 0 {
-		return true
-	}
 	if strings.Contains(err.Error(), "io: read/write on closed pipe") {
 		return true
 	}
@@ -277,10 +248,6 @@ func isClosedError(err error) bool {
 }
 
 func forwardDeniedReason(err error, network string) string {
-	if e, ok := err.(*tsshd.Error); ok && e.Code == tsshd.ErrProhibited {
-		return e.Msg
-	}
-
 	buildDeniedMsg := func() string {
 		option := "AllowTcpForwarding"
 		if network == "unix" {
@@ -332,19 +299,11 @@ func stdioForward(args *sshArgs, client SshClient, addr string) error {
 }
 
 func localForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) {
-	if f.udp {
-		localForwardUDP(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
-	} else {
-		localForwardTCP(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
-	}
+	localForwardTCP(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
 }
 
 func remoteForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration) {
-	if f.udp {
-		remoteForwardUDP(sshConn, f, gateway, timeout)
-	} else {
-		remoteForwardTCP(sshConn, f, gateway, timeout)
-	}
+	remoteForwardTCP(sshConn, f, gateway, timeout)
 }
 
 func sshPortForward(sshConn *sshConnection) {
@@ -353,15 +312,6 @@ func sshPortForward(sshConn *sshConnection) {
 	if strings.ToLower(getOptionConfig(args, "ClearAllForwardings")) == "yes" {
 		debug("clear all forwardings")
 		return
-	}
-
-	warnedUDP := false
-	warnRequiredUDP := func() {
-		if warnedUDP {
-			return
-		}
-		warnedUDP = true
-		warning("UDP forwarding does not work because tssh is not running in UDP mode")
 	}
 
 	gateway := isGatewayPorts(sshConn.param.args)
@@ -384,28 +334,12 @@ func sshPortForward(sshConn *sshConnection) {
 
 	// local forward
 	for _, f := range args.LocalForward.cfgs {
-		if f.udp && sshConn.param.udpMode == kUdpModeNo {
-			warnRequiredUDP()
-			continue
-		}
 		localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
 	}
 	for _, s := range getAllExOptionConfig(args, "LocalForward") {
-		f, err := parseForwardCfg(sshConn.param, false, s)
+		f, err := parseForwardCfg(sshConn.param, s)
 		if err != nil {
 			warning("parse local forwarding failed: %v", err)
-			continue
-		}
-		localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
-	}
-	for _, s := range getAllExOptionConfig(args, "UdpLocalForward") {
-		if sshConn.param.udpMode == kUdpModeNo {
-			warnRequiredUDP()
-			break
-		}
-		f, err := parseForwardCfg(sshConn.param, true, s)
-		if err != nil {
-			warning("parse udp local forwarding failed: %v", err)
 			continue
 		}
 		localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
@@ -413,28 +347,12 @@ func sshPortForward(sshConn *sshConnection) {
 
 	// remote forward
 	for _, f := range args.RemoteForward.cfgs {
-		if f.udp && sshConn.param.udpMode == kUdpModeNo {
-			warnRequiredUDP()
-			continue
-		}
 		remoteForward(sshConn, f, gateway, timeout)
 	}
 	for _, s := range getAllExOptionConfig(args, "RemoteForward") {
-		f, err := parseForwardCfg(sshConn.param, false, s)
+		f, err := parseForwardCfg(sshConn.param, s)
 		if err != nil {
 			warning("parse remote forwarding failed: %v", err)
-			continue
-		}
-		remoteForward(sshConn, f, gateway, timeout)
-	}
-	for _, s := range getAllExOptionConfig(args, "UdpRemoteForward") {
-		if sshConn.param.udpMode == kUdpModeNo {
-			warnRequiredUDP()
-			break
-		}
-		f, err := parseForwardCfg(sshConn.param, true, s)
-		if err != nil {
-			warning("parse udp local forwarding failed: %v", err)
 			continue
 		}
 		remoteForward(sshConn, f, gateway, timeout)

@@ -1,0 +1,83 @@
+trzsz (1.2.0) trusty; urgency=medium
+
+  * trzsz-go v1.2.0
+
+ -- Lonny Wong <lonnywong@qq.com>  Sat, 17 Jan 2026 20:39:25 +0800
+
+trzsz (1.1.8) trusty; urgency=medium
+
+  * trzsz-go v1.1.8
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 18 Aug 2024 16:37:28 +0800
+
+trzsz (1.1.7) trusty; urgency=medium
+
+  * trzsz-go v1.1.7
+
+ -- Lonny Wong <lonnywong@qq.com>  Sat, 23 Dec 2023 15:06:55 +0800
+
+trzsz (1.1.6) trusty; urgency=medium
+
+  * trzsz-go v1.1.6
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 22 Oct 2023 10:20:57 +0800
+
+trzsz (1.1.5) trusty; urgency=medium
+
+  * trzsz-go v1.1.5
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 30 Jul 2023 21:03:26 +0800
+
+trzsz (1.1.4) trusty; urgency=medium
+
+  * trzsz-go v1.1.4
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 16 Jul 2023 13:21:30 +0800
+
+trzsz (1.1.3) trusty; urgency=medium
+
+  * trzsz-go v1.1.3
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 11 Jun 2023 16:50:22 +0800
+
+trzsz (1.1.2) trusty; urgency=medium
+
+  * trzsz-go v1.1.2
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 28 May 2023 20:45:55 +0800
+
+trzsz (1.1.1) trusty; urgency=medium
+
+  * trzsz-go v1.1.1
+
+ -- Lonny Wong <lonnywong@qq.com>  Sat, 27 May 2023 15:58:01 +0800
+
+trzsz (1.1.0) trusty; urgency=medium
+
+  * trzsz-go v1.1.0
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 07 May 2023 15:06:55 +0800
+
+trzsz (1.0.0.1) trusty; urgency=medium
+
+  * trzsz-go v1.0.0
+
+ -- Lonny Wong <lonnywong@qq.com>  Sat, 10 Dec 2022 13:25:21 +0800
+
+trzsz (0.1.9) trusty; urgency=medium
+
+  * trzsz-go v0.1.9
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 17 Jul 2022 08:16:25 +0800
+
+trzsz (0.1.8) trusty; urgency=medium
+
+  * Release v0.1.8 with Go1.18.
+
+ -- Lonny Wong <lonnywong@qq.com>  Sat, 25 Jun 2022 22:52:30 +0800
+
+trzsz (0.0.1) xenial; urgency=medium
+
+  * Initial Release.
+
+ -- Lonny Wong <lonnywong@qq.com>  Sun, 13 Feb 2022 21:48:19 +0800
