@@ -215,7 +215,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
 - If the destination is part of the aliases in `~/.ssh/config`, and can't completely match an alias, the login prompt will also be opened.
 
-- If `#!! HideHost yes` is configured, or the alias contains `*` or `?` wildcard characters, it will not be displayed in the login prompt.
+- If `HideHost yes` is configured, or the alias contains `*` or `?` wildcard characters, it will not be displayed in the login prompt.
 
 - `tssh` supports shortcuts, supports search, and supports multi-selection when used in `tmux`, `iTerm2`, and `Windows Terminal`, etc.
 
@@ -361,7 +361,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host *
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
     EnableDragFile Yes
     DragFileUploadCommand rz
   ```
@@ -372,7 +372,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host no_zmodem
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
     EnableZmodem No
   ```
 
@@ -429,12 +429,12 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 - Supports configuring group labels on multiple Host nodes in the form of wildcard \*, and `tssh` will summarize all the group labels.
 
   ```
-  # The following testAA has group labels group1 group2 label3 label4 group5. Add `#!!` prefix to be compatible with openssh.
+  # The following testAA has group labels group1 group2 label3 label4 group5.
   Host test*
-      #!! GroupLabels group1 group2
-      #!! GroupLabels label3
+      GroupLabels group1 group2
+      GroupLabels label3
   Host testAA
-      #!! GroupLabels label4 group5
+      GroupLabels label4 group5
   ```
 
 ### Automated Interaction
@@ -443,13 +443,13 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host auto
-      #!! ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
-      #!! ExpectTimeout 30  # Configures the timeout for automated interaction (in seconds), default is 30 seconds
-      #!! ExpectPattern1 *assword  # Configures the first automated interaction match expression
+      ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
+      ExpectTimeout 30  # Configures the timeout for automated interaction (in seconds), default is 30 seconds
+      ExpectPattern1 *assword  # Configures the first automated interaction match expression
       # Configures the first automated input (encrypted). It was encoded by `tssh --enc-secret`, `tssh` will send \r (enter) automatically
-      #!! ExpectSendPass1 d7983b4a8ac204bd073ed04741913befd4fbf813ad405d7404cb7d779536f8b87e71106d7780b2
-      #!! ExpectPattern2 hostname*$  # Configures the second automated interaction match expression
-      #!! ExpectSendText2 echo tssh expect\r  # Configures the second automated input (plaintext), specify \r to send enter
+      ExpectSendPass1 d7983b4a8ac204bd073ed04741913befd4fbf813ad405d7404cb7d779536f8b87e71106d7780b2
+      ExpectPattern2 hostname*$  # Configures the second automated interaction match expression
+      ExpectSendText2 echo tssh expect\r  # Configures the second automated input (plaintext), specify \r to send enter
       # Choose either ExpectSendPass? or ExpectSendText? for each interaction; if both are configured, ExpectSendPass? has higher priority
   ```
 
@@ -457,48 +457,48 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host case
-      #!! ExpectCount 1  # Configures the number of automated interactions, default is 0 which means no automated interaction
-      #!! ExpectPattern1 hostname*$  # Configures the first automated interaction match expression
-      #!! ExpectSendText1 ssh xxx\r  # Configures the first automated input, can also use ExpectSendPass1 then configure with encrypted text
-      #!! ExpectCaseSendText1 yes/no y\r  # Before matching ExpectPattern1, if encountering yes/no, then send y and enter
-      #!! ExpectCaseSendText1 y/n yes\r   # Before matching ExpectPattern1, if encountering y/n, then send yes and enter
-      #!! ExpectCaseSendPass1 token d7... # Before matching ExpectPattern1, if encountering token, then decode d7... and send
+      ExpectCount 1  # Configures the number of automated interactions, default is 0 which means no automated interaction
+      ExpectPattern1 hostname*$  # Configures the first automated interaction match expression
+      ExpectSendText1 ssh xxx\r  # Configures the first automated input, can also use ExpectSendPass1 then configure with encrypted text
+      ExpectCaseSendText1 yes/no y\r  # Before matching ExpectPattern1, if encountering yes/no, then send y and enter
+      ExpectCaseSendText1 y/n yes\r   # Before matching ExpectPattern1, if encountering y/n, then send yes and enter
+      ExpectCaseSendPass1 token d7... # Before matching ExpectPattern1, if encountering token, then decode d7... and send
   ```
 
 - When the server's output is matched, generate the `totp` 2FA code, and send it:
 
   ```
   Host totp
-      #!! ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
-      #!! ExpectPattern1 token:  # Configures the first automated interaction match expression
-      #!! ExpectSendTotp1 xxxxx  # Configure the secret (plain text) of totp, generally obtained by scanning the QR code
-      #!! ExpectPattern2 token:  # Configures the second automated interaction match expression
+      ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
+      ExpectPattern1 token:  # Configures the first automated interaction match expression
+      ExpectSendTotp1 xxxxx  # Configure the secret (plain text) of totp, generally obtained by scanning the QR code
+      ExpectPattern2 token:  # Configures the second automated interaction match expression
       # The following ciphertext was generated by encoding the secret of totp with `tssh --enc-secret`.
-      #!! ExpectSendEncTotp2 821fe830270201c36cd1a869876a24453014ac2f1d2d3b056f3601ce9cc9a87023
+      ExpectSendEncTotp2 821fe830270201c36cd1a869876a24453014ac2f1d2d3b056f3601ce9cc9a87023
   ```
 
 - When the server's output is matched, execute the specified command to obtain the one-time password, and send it:
 
   ```
   Host otp
-      #!! ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
-      #!! ExpectPattern1 token:  # Configures the first automated interaction match expression
-      #!! ExpectSendOtp1 oathtool --totp -b xxxxx  # Configure the command line to obtain the one-time password
-      #!! ExpectPattern2 token:  # Configures the second automated interaction match expression
+      ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
+      ExpectPattern1 token:  # Configures the first automated interaction match expression
+      ExpectSendOtp1 oathtool --totp -b xxxxx  # Configure the command line to obtain the one-time password
+      ExpectPattern2 token:  # Configures the second automated interaction match expression
       # The following ciphertext was generated by encoding `oathtool --totp -b xxxxx` with `tssh --enc-secret`.
-      #!! ExpectSendEncOtp2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
+      ExpectSendEncOtp2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
   ```
 
 - Some servers may not support sending data continuously. For example, sending `1\r` requires a slight delay after `1` before sending `\r`. You can use `\|` to separate them.
 
   ```
   Host sleep
-      #!! ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
-      #!! ExpectSleepMS 100  # Number of milliseconds to sleep between separate inputs, default is 100ms
-      #!! ExpectPattern1 x>  # Configures the first automated interaction match expression
-      #!! ExpectSendText1 1\|\r  # Configures the first automated input, send 1, sleep 100ms, send \r.
-      #!! ExpectPattern2 y>  # Configures the second automated interaction match expression
-      #!! ExpectSendText2 \|1\|\|\r  # Configures the second automated input, sleep 100ms, send 1, sleep 200ms, send \r.
+      ExpectCount 2  # Configures the number of automated interactions, default is 0 which means no automated interaction
+      ExpectSleepMS 100  # Number of milliseconds to sleep between separate inputs, default is 100ms
+      ExpectPattern1 x>  # Configures the first automated interaction match expression
+      ExpectSendText1 1\|\r  # Configures the first automated input, send 1, sleep 100ms, send \r.
+      ExpectPattern2 y>  # Configures the second automated interaction match expression
+      ExpectSendText2 \|1\|\|\r  # Configures the second automated input, sleep 100ms, send 1, sleep 200ms, send \r.
   ```
 
 - Some servers may not support sending password continuously. Then you need to configure `ExpectPassSleep`, which is `no` by default, and can be configured as `each` or `enter`:
@@ -521,12 +521,12 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 - The passwords configured below for `test1` and `test2` are `123456`, and the passwords for other aliases starting with `test` are `111111`:
 
   ```
-  # If configured in ~/.ssh/config, you can add `#!!` prefix to be compatible with openssh.
+  # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
   Host test1
       # The following ciphertext was generated by encoding `123456` with `tssh --enc-secret`.
-      #!! encPassword 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
+      encPassword 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
 
-  # If configured in ~/.ssh/password, there is no need to consider whether it's compatible with openssh.
+  # If configured in ExConfigPath, OpenSSH will not read these tssh-specific options.
   Host test2
       # The following ciphertext was generated by encoding `123456` with `tssh --enc-secret`.
       encPassword 051a2f0fdc7d0d40794b845967df4c2d05b5eb0f25339021dc4e02a9d7620070654b
@@ -543,32 +543,32 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
   ```
   Host test1
       # The following ciphertext was generated by encoding `123456` with `tssh --enc-secret`.
-      #!! encQuestionAnswer1 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
+      encQuestionAnswer1 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
   ```
 
-- - If `ControlMaster` multiplexing is enabled, or in older versions of the `Warp` terminal, you will need to use the `Automated Interaction` mentioned earlier to achieve remembering password. Please refer to the earlier `Automated Interaction` section, simply add a `Ctrl` prefix as follows:
+- If `ControlMaster` multiplexing is enabled, or in older versions of the `Warp` terminal, you will need to use the `Automated Interaction` mentioned earlier to achieve remembering password. Please refer to the earlier `Automated Interaction` section, simply add a `Ctrl` prefix as follows:
 
   ```
   Host ctrl
-      #!! CtrlExpectCount 1  # Configure the number of automated interactions, typically only requires entering the password once
-      #!! CtrlExpectPattern1 *assword    # Configure the matching expression for the password prompt
-      #!! CtrlExpectSendPass1 d7983b...  # Configure the password encoded by `tssh --enc-secret`
+      CtrlExpectCount 1  # Configure the number of automated interactions, typically only requires entering the password once
+      CtrlExpectPattern1 *assword    # Configure the matching expression for the password prompt
+      CtrlExpectSendPass1 d7983b...  # Configure the password encoded by `tssh --enc-secret`
   ```
 
 - Support remember `Passphrase` for private keys ( It's recommended to use `ssh-agent` ). Support configuring `Passphrase` together with `IdentityFile`. Support configuring `Passphrase` using private key filename instead of host alias. For example:
 
   ```
-  # Configuring Passphrase together with IdentityFile. Add `#!!` prefix to be compatible with openssh.
+  # Configuring Passphrase together with IdentityFile.
   Host test1
       IdentityFile /path/to/id_rsa
       # The following ciphertext was generated by encoding `123456` with `tssh --enc-secret`.
-      #!! encPassphrase 6f419911555b0cdc84549ae791ef69f654118d734bb4351de7e83163726ef46d176a
+      encPassphrase 6f419911555b0cdc84549ae791ef69f654118d734bb4351de7e83163726ef46d176a
 
   # Configure the Passphrase corresponding to the private key ~/.ssh/id_ed25519 in ~/.ssh/config
   # The wildcard * can be added to prevent the filename from appearing in the tssh server list.
   Host id_ed25519*
       # The following ciphertext was generated by encoding `111111` with `tssh --enc-secret`.
-      #!! encPassphrase 3a929328f2ab1be0ba3fccf29e8125f8e2dac6dab73c946605cf0bb8060b05f02a68
+      encPassphrase 3a929328f2ab1be0ba3fccf29e8125f8e2dac6dab73c946605cf0bb8060b05f02a68
 
   # If configured in ~/.ssh/password, the wildcard * is not required and will not appear in the server list.
   Host id_rsa
@@ -598,32 +598,32 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
   ```
   # gopass (https://github.com/gopass-io/gopass)
   Host server1
-      #!! PasswordCommand gopass show -o ssh/%n
-      #!! PassphraseCommand gopass show -o ssh/%n/passphrase
+      PasswordCommand gopass show -o ssh/%n
+      PassphraseCommand gopass show -o ssh/%n/passphrase
 
   # pass (https://www.passwordstore.org)
   Host server2
-      #!! PasswordCommand pass show ssh/%n
+      PasswordCommand pass show ssh/%n
 
   # 1Password CLI
   Host server3
-      #!! PasswordCommand op read "op://Vault/ssh-%n/password"
+      PasswordCommand op read "op://Vault/ssh-%n/password"
 
   # macOS Keychain
   Host server4
-      #!! PasswordCommand security find-generic-password -a %r -s %n -w
+      PasswordCommand security find-generic-password -a %r -s %n -w
 
   # Bitwarden CLI
   Host server5
-      #!! PasswordCommand bw get password ssh-%n
+      PasswordCommand bw get password ssh-%n
 
   # HashiCorp Vault
   Host server6
-      #!! PasswordCommand vault kv get -field=password secret/ssh/%n
+      PasswordCommand vault kv get -field=password secret/ssh/%n
 
   # Use for all hosts with a single command
   Host *
-      #!! PasswordCommand gopass show -o ssh/%n
+      PasswordCommand gopass show -o ssh/%n
   ```
 
 ### Remember Answers
@@ -635,7 +635,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 - Login with `tssh --debug`, the hex code of the questions will be output, so that you will know how to configure with the hex code. For example:
 
   ```
-  # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+  # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
   Host test1
       # The following ciphertext was generated by encoding `TheAnswer1` with `tssh --enc-secret`.
       encQuestionAnswer1 4f6b79d0e4e48fc56ee29c61bd19559a322cd07f7d27f2a7f33978671be1b522d549252b22ee
@@ -677,24 +677,24 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host custom_otp_command
-      #!! OtpCommand1 /path/to/your_own_program %q
-      #!! OtpCommand2 python C:\your_python_code.py %q
+      OtpCommand1 /path/to/your_own_program %q
+      OtpCommand2 python C:\your_python_code.py %q
   ```
 
 - If `ControlMaster` multiplexing is enabled, or in older versions of the `Warp` terminal, you will need to use the `Automated Interaction` mentioned earlier to achieve remembering answers.
 
   ```
   Host ctrl_totp
-      #!! CtrlExpectCount 1  # Configure the number of automated interactions
-      #!! CtrlExpectPattern1 code:  # Configure the matching expression for the password prompt (totp 2FA)
-      #!! CtrlExpectSendTotp1 xxxxx  # Configure the secret (plain text) of totp, generally obtained by scanning the QR code
-      #!! CtrlExpectSendEncTotp1 622ada31cf...  # Or configure the encrypted secret of totp encoded using `tssh --enc-secret`
+      CtrlExpectCount 1  # Configure the number of automated interactions
+      CtrlExpectPattern1 code:  # Configure the matching expression for the password prompt (totp 2FA)
+      CtrlExpectSendTotp1 xxxxx  # Configure the secret (plain text) of totp, generally obtained by scanning the QR code
+      CtrlExpectSendEncTotp1 622ada31cf...  # Or configure the encrypted secret of totp encoded using `tssh --enc-secret`
 
   Host ctrl_otp
-      #!! CtrlExpectCount 1  # Configure the number of automated interactions
-      #!! CtrlExpectPattern1 token:  # Configure the matching expression for the password prompt (one-time password)
-      #!! CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # Configure the command line to obtain the one-time password
-      #!! CtrlExpectSendEncOtp1 77b4ce85d0...  # Or configure the encrypted command line encoded using `tssh --enc-secret`
+      CtrlExpectCount 1  # Configure the number of automated interactions
+      CtrlExpectPattern1 token:  # Configure the matching expression for the password prompt (one-time password)
+      CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # Configure the command line to obtain the one-time password
+      CtrlExpectSendEncOtp1 77b4ce85d0...  # Or configure the encrypted command line encoded using `tssh --enc-secret`
   ```
 
 ### Custom Configuration
@@ -746,16 +746,16 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
 ### Comments of Config
 
-- The comments in the `tssh` configuration are basically the same as `openssh`, with some additional extended support, see the following table for details:
+- The comments in the `tssh` configuration are basically the same as `openssh`, see the following table for details:
 
   | Comments              |   openssh    |     tssh      |
   | :-------------------- | :----------: | :-----------: |
   | Starting with `#`     | Is a comment | Is a comment  |
-  | Starting with `#!!`   | Is a comment | Not a comment |
+  | Starting with `#!!`   | Is a comment | Is a comment  |
   | `Key Value # Comment` |  It depends  | Is a comment  |
   | `Key=Value # Comment` |  It depends  | Not a comment |
 
-- Configuration starting with `#` are always considered by `openssh` to be a comment; `tssh` considers configuration starting with `#!!` not to be a comment, and other configurations starting with `#` are comments.
+- Configuration starting with `#`, including `#!!`, is always considered a comment by both `openssh` and `tssh`.
 
 - `Key Value # Comment` configuration (without `=` sign), `openssh` considers the content after `#` to be a comment in some cases, and considers it not to be a comment in some other cases; `tssh` always considers the content after `#` to be a comment.
 
@@ -767,7 +767,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host xxx
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
     EnableWaypipe Yes
   ```
 
@@ -781,11 +781,11 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host xxx
-    #!! EnableWaypipe Yes
-    #!! WaypipeClientPath /usr/bin/waypipe
-    #!! WaypipeServerPath /usr/bin/waypipe
-    #!! WaypipeClientOption -c lz4
-    #!! WaypipeServerOption -c lz4
+    EnableWaypipe Yes
+    WaypipeClientPath /usr/bin/waypipe
+    WaypipeServerPath /usr/bin/waypipe
+    WaypipeClientOption -c lz4
+    WaypipeServerOption -c lz4
   ```
 
 ### Clipboard Integration
@@ -794,7 +794,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host *
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
     EnableOSC52 Yes
   ```
 
@@ -818,7 +818,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host xxx
-    #!! ConsoleEscapeTime 1
+    ConsoleEscapeTime 1
   ```
 
 ### Other Features
@@ -830,7 +830,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host server2
-    # If configured in ~/.ssh/config, add `#!!` prefix to be compatible with openssh.
+    # If this is used with OpenSSH, put tssh-specific options in `ExConfigPath` instead.
     encPassword de88c4dbdc95d85303682734e2397c4d8dd29bfff09ec53580f31dd40291fc8c7755
     encQuestionAnswer1 93956f6e7e9f2aef3af7d6a61f7046dddf14aa4bbd9845dbb836fe3782b62ac0d89f
   ```
@@ -857,7 +857,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
   ```
   Host xxx
-    #!! DnsSrvName myhost.mydomain.com
+    DnsSrvName myhost.mydomain.com
   ```
 
 ### Reconnect Mode
@@ -902,7 +902,7 @@ trzsz-ssh ( tssh ) is an ssh client designed as a drop-in replacement for the op
 
 - If the `tssh` specific configuration items are configured in `~/.ssh/config`, and openssh report an error `Bad configuration option`.
 
-  - You can add `#!!` prefix to the items, openssh will treat it as a comment, while `tssh` will treat it as one of the valid configurations.
+  - Move the tssh-specific items to `ExConfigPath` or to a config file used only by `tssh`; lines starting with `#!!` are comments for both OpenSSH and tssh.
 
 ### Contact
 

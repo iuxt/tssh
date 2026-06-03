@@ -45,9 +45,13 @@ type packetConn interface {
 
 // channel is an implementation of the Channel interface that works
 // with the mux class.
+//
+//lint:ignore U1000 mirrors golang.org/x/crypto/ssh internals for go:linkname.
 type channel struct{} // nolint:all
 
 // chanList is a thread safe channel list.
+//
+//lint:ignore U1000 mirrors golang.org/x/crypto/ssh internals for go:linkname.
 type chanList struct { // nolint:all
 	// protects concurrent access to chans
 	sync.Mutex
@@ -64,6 +68,8 @@ type chanList struct { // nolint:all
 
 // mux represents the state for the SSH connection protocol, which
 // multiplexes many channels onto a single packet transport.
+//
+//lint:ignore U1000 mirrors golang.org/x/crypto/ssh internals for go:linkname.
 type mux struct {
 	conn     packetConn // nolint:all
 	chanList chanList   // nolint:all

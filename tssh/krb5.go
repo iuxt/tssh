@@ -33,8 +33,8 @@ import (
 	"runtime"
 	"strings"
 
-	"trzsz-ssh/internal/krb5"
 	"golang.org/x/crypto/ssh"
+	"trzsz-ssh/internal/krb5"
 )
 
 func getKrb5Config() string {

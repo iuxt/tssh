@@ -8,6 +8,8 @@
 // https://cvsweb.openbsd.org/cgi-bin/cvsweb/src/lib/libutil/bcrypt_pbkdf.c.
 package bcrypt_pbkdf
 
+//lint:file-ignore SA1019 bcrypt_pbkdf intentionally implements OpenBSD bcrypt_pbkdf with Blowfish.
+
 import (
 	"crypto/sha512"
 	"errors"

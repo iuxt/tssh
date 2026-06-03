@@ -44,8 +44,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"trzsz-ssh/internal/ssh"
 	"golang.org/x/crypto/ssh"
+	"trzsz-ssh/internal/ssh"
 )
 
 type skSigner struct {

@@ -1,0 +1,447 @@
+# trzsz-ssh / tssh example configuration
+#
+# This file demonstrates the SSH-style configuration loaded by tssh from
+# `ConfigPath` and `ExConfigPath`.
+#
+# Default paths:
+#   ConfigPath   = ~/.tssh/config
+#   ExConfigPath = ~/.tssh/password
+#
+# Recommended layout:
+#   - Put normal OpenSSH-compatible options in ~/.ssh/config or ~/.tssh/config.
+#   - Put tssh-specific options and secrets in ExConfigPath, so OpenSSH will not
+#     read options it does not understand.
+#   - Lines starting with `#`, including `#!!`, are comments for both OpenSSH and
+#     tssh. Do not use `#!!` as a tssh configuration prefix.
+#
+# Global tssh UI settings are NOT read from this SSH-style file. Put them in
+# `$XDG_CONFIG_HOME/tssh/tssh.conf` or `~/.tssh.conf`, for example:
+#
+#   Language = zh_CN
+#   ConfigPath = ~/.ssh/config
+#   ExConfigPath = ~/.tssh/password
+#   UseOpenSSHConfig = Yes
+#   PromptThemeLayout = table
+#   PromptPageSize = 12
+#   PromptDefaultMode = search
+#   PromptDetailItems = Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand
+#   PromptCursorIcon = >
+#   PromptSelectedIcon = *
+#   SetTerminalTitle = Yes
+#   DefaultUploadPath = ~/Downloads
+#   DefaultDownloadPath = ~/Downloads
+#   DragFileUploadCommand = rz
+#   ProgressColorPair = 2,4
+
+
+# -----------------------------------------------------------------------------
+# Base defaults
+# -----------------------------------------------------------------------------
+#
+# This block applies to every host unless a later, more specific Host block
+# overrides the option.
+
+Host *
+    User iuxt
+    Port 22
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    ConnectTimeout 10
+    LogLevel ERROR
+    AddressFamily any
+
+    # Public-key authentication.
+    PubkeyAuthentication yes
+    IdentitiesOnly yes
+    IdentityFile ~/.ssh/id_ed25519
+
+    # Agent forwarding. Enable only for hosts you trust.
+    ForwardAgent no
+    IdentityAgent $SSH_AUTH_SOCK
+
+    # Host key checking.
+    StrictHostKeyChecking ask
+    UserKnownHostsFile ~/.ssh/known_hosts
+
+    # tssh transfer integration.
+    EnableDragFile yes
+    EnableZmodem yes
+    EnableOSC52 yes
+    DragFileUploadCommand rz
+    DefaultUploadPath ~/Downloads
+    DefaultDownloadPath ~/Downloads
+
+    # Console escape. Set ConsoleEscapeTime to 0 to disable tssh console escape.
+    EscapeChar ~
+    ConsoleEscapeTime 1
+
+
+# -----------------------------------------------------------------------------
+# Basic hosts
+# -----------------------------------------------------------------------------
+
+Host prod-web-01
+    HostName 10.0.10.11
+    User deploy
+    Port 22
+    GroupLabels prod web
+
+Host prod-db-01
+    HostName 10.0.20.21
+    User dba
+    Port 22
+    GroupLabels prod db
+    # Hide from the tssh prompt, but still allow `tssh prod-db-01`.
+    HideHost yes
+
+Host dev-box
+    HostName dev.example.com
+    User dev
+    Port 2222
+    GroupLabels dev
+    RemoteCommand tmux new -A -s dev
+    RequestTTY yes
+
+
+# -----------------------------------------------------------------------------
+# Wildcards and grouped hosts
+# -----------------------------------------------------------------------------
+
+Host lab-*
+    User lab
+    Port 22
+    GroupLabels lab test
+    IdentityFile ~/.ssh/lab_ed25519
+
+Host lab-build-01
+    HostName 192.168.56.21
+    GroupLabels build
+
+Host lab-build-02
+    HostName 192.168.56.22
+    GroupLabels build
+
+
+# -----------------------------------------------------------------------------
+# Jump hosts and proxy commands
+# -----------------------------------------------------------------------------
+
+Host bastion
+    HostName bastion.example.com
+    User jump
+    Port 22
+    GroupLabels gateway
+
+Host internal-web
+    HostName 10.10.1.20
+    User deploy
+    ProxyJump bastion
+    GroupLabels internal web
+
+Host internal-db
+    HostName 10.10.2.30
+    User postgres
+    ProxyCommand ssh bastion nc %h %p
+    GroupLabels internal db
+
+Host socks-proxy-target
+    HostName target.internal
+    ProxyCommand nc -x 127.0.0.1:1080 %h %p
+    GroupLabels proxy
+
+
+# -----------------------------------------------------------------------------
+# ControlMaster multiplexing
+# -----------------------------------------------------------------------------
+#
+# ControlMaster speeds up repeated connections. If password prompts are handled
+# by the underlying OpenSSH control master, use CtrlExpect* options below when
+# automation is needed.
+
+Host mux-*
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlPersist 10m
+
+Host mux-web
+    HostName web.example.com
+    User deploy
+
+
+# -----------------------------------------------------------------------------
+# Port forwarding
+# -----------------------------------------------------------------------------
+
+Host tunnel-web
+    HostName web.internal
+    ProxyJump bastion
+    LocalForward 127.0.0.1:8080 127.0.0.1:80
+    LocalForward 127.0.0.1:8443 127.0.0.1:443
+    ClearAllForwardings no
+    ExitOnForwardFailure yes
+
+Host tunnel-db
+    HostName db.internal
+    ProxyJump bastion
+    LocalForward 127.0.0.1:5432 127.0.0.1:5432
+    StreamLocalBindUnlink yes
+
+Host tunnel-remote
+    HostName public.example.com
+    RemoteForward 127.0.0.1:9000 127.0.0.1:9000
+    GatewayPorts no
+
+Host tunnel-socks
+    HostName bastion.example.com
+    DynamicForward 127.0.0.1:1080
+
+
+# -----------------------------------------------------------------------------
+# X11, Wayland, and clipboard integration
+# -----------------------------------------------------------------------------
+
+Host x11-host
+    HostName workstation.example.com
+    ForwardX11 yes
+    ForwardX11Trusted no
+    ForwardX11Timeout 20m
+    XAuthLocation /usr/bin/xauth
+
+Host wayland-host
+    HostName wayland.example.com
+    EnableWaypipe yes
+    WaypipeClientPath /usr/bin/waypipe
+    WaypipeServerPath /usr/bin/waypipe
+    WaypipeClientOption -c lz4
+    WaypipeServerOption -c lz4
+
+Host clipboard-host
+    HostName clip.example.com
+    EnableOSC52 yes
+
+
+# -----------------------------------------------------------------------------
+# DNS SRV and canonicalization
+# -----------------------------------------------------------------------------
+
+Host home
+    DnsSrvName home.example.com
+    User pi
+    GroupLabels home
+
+Host *.corp
+    CanonicalizeHostname yes
+    CanonicalDomains corp.example.com internal.example.com
+    CanonicalizeMaxDots 1
+    CanonicalizeFallbackLocal yes
+
+
+# -----------------------------------------------------------------------------
+# Ciphers and legacy servers
+# -----------------------------------------------------------------------------
+
+Host legacy-server
+    HostName legacy.example.com
+    User admin
+    # Prefixes supported by tssh:
+    #   +cipher  append cipher
+    #   -pattern remove matching ciphers
+    #   ^cipher  prepend cipher
+    #   list     replace cipher list
+    Ciphers +aes128-cbc
+    HostKeyAlgorithms +ssh-rsa
+    PubkeyAcceptedAlgorithms +ssh-rsa
+
+
+# -----------------------------------------------------------------------------
+# Kerberos / GSSAPI
+# -----------------------------------------------------------------------------
+
+Host kerberos-host
+    HostName krb.example.com
+    User krbuser
+    GSSAPIAuthentication yes
+
+
+# -----------------------------------------------------------------------------
+# Local commands and environment
+# -----------------------------------------------------------------------------
+
+Host with-env
+    HostName env.example.com
+    SendEnv LANG LC_*
+    SetEnv TERM=xterm-256color APP_ENV=dev
+
+Host with-local-command
+    HostName app.example.com
+    PermitLocalCommand yes
+    LocalCommand echo connected to %n at %h:%p
+
+
+# -----------------------------------------------------------------------------
+# Secrets in ExConfigPath
+# -----------------------------------------------------------------------------
+#
+# Put this section in ExConfigPath, e.g. ~/.tssh/password. Keeping secrets out of
+# ~/.ssh/config avoids OpenSSH "Bad configuration option" errors and reduces
+# accidental exposure.
+#
+# Plain text secrets are supported, but encrypted values generated by
+# `tssh --enc-secret` are recommended.
+
+Host password-plain
+    HostName password.example.com
+    User demo
+    Password change-me
+
+Host password-encrypted
+    HostName password.example.com
+    User demo
+    # Replace the value below with output from `tssh --enc-secret`.
+    encPassword 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+Host key-with-passphrase
+    HostName key.example.com
+    User demo
+    IdentityFile ~/.ssh/id_ed25519_encrypted
+    # Replace the value below with output from `tssh --enc-secret`.
+    encPassphrase 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+Host id_ed25519*
+    # Match private-key filenames to provide a shared passphrase for that key.
+    encPassphrase 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+
+# -----------------------------------------------------------------------------
+# External password managers
+# -----------------------------------------------------------------------------
+#
+# Any secret key can use a Command suffix. Tokens such as %n, %h, %p and %r are
+# expanded before executing the command.
+
+Host gopass-host
+    PasswordCommand gopass show -o ssh/%n
+    PassphraseCommand gopass show -o ssh/%n/passphrase
+
+Host pass-host
+    PasswordCommand pass show ssh/%n
+
+Host onepassword-host
+    PasswordCommand op read "op://Private/ssh-%n/password"
+
+Host macos-keychain-host
+    PasswordCommand security find-generic-password -a %r -s %n -w
+
+Host bitwarden-host
+    PasswordCommand bw get password ssh-%n
+
+Host vault-host
+    PasswordCommand vault kv get -field=password secret/ssh/%n
+
+
+# -----------------------------------------------------------------------------
+# Keyboard-interactive answers, TOTP, and OTP commands
+# -----------------------------------------------------------------------------
+
+Host question-fixed
+    HostName kbd.example.com
+    KbdInteractiveAuthentication yes
+    # For one fixed question, use QuestionAnswer1 or encQuestionAnswer1.
+    QuestionAnswer1 yes
+    encQuestionAnswer2 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+Host question-by-text
+    HostName kbd.example.com
+    # The question "code: " is hex encoded as 636f64653a20.
+    totp636f64653a20 JBSWY3DPEHPK3PXP
+    otp746f6b656e3a20 oathtool --totp -b JBSWY3DPEHPK3PXP
+
+Host totp-numbered
+    HostName totp.example.com
+    TotpSecret1 JBSWY3DPEHPK3PXP
+    encTotpSecret2 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+Host otp-numbered
+    HostName otp.example.com
+    OtpCommand1 oathtool --totp -b JBSWY3DPEHPK3PXP
+    encOtpCommand2 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+
+# -----------------------------------------------------------------------------
+# Automated interaction
+# -----------------------------------------------------------------------------
+#
+# Use this when the server prompts before normal SSH authentication completes, or
+# when a legacy terminal/control-master path needs prompt automation.
+#
+# Pattern values are regular expressions. SendText values need `\r` when you
+# want to send Enter. SendPass values are encrypted with `tssh --enc-secret` and
+# automatically append Enter.
+
+Host expect-password
+    HostName expect.example.com
+    ExpectCount 2
+    ExpectTimeout 30
+    ExpectPattern1 *assword
+    ExpectSendPass1 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    ExpectPattern2 hostname*$
+    ExpectSendText2 echo connected\r
+
+Host expect-case
+    HostName expect-case.example.com
+    ExpectCount 1
+    ExpectPattern1 hostname*$
+    ExpectCaseSendText1 yes/no y\r
+    ExpectCaseSendText1 y/n yes\r
+    ExpectCaseSendPass1 token 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    ExpectSendText1 ssh next-hop\r
+
+Host expect-totp
+    HostName expect-totp.example.com
+    ExpectCount 2
+    ExpectPattern1 token:
+    ExpectSendTotp1 JBSWY3DPEHPK3PXP
+    ExpectPattern2 token:
+    ExpectSendEncTotp2 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+Host expect-otp
+    HostName expect-otp.example.com
+    ExpectCount 1
+    ExpectPattern1 token:
+    ExpectSendOtp1 oathtool --totp -b JBSWY3DPEHPK3PXP
+
+Host expect-slow
+    HostName slow.example.com
+    ExpectCount 2
+    ExpectSleepMS 100
+    ExpectPattern1 x>
+    ExpectSendText1 1\|\r
+    ExpectPattern2 y>
+    ExpectSendText2 \|1\|\|\r
+    # For password senders, choose: no, each, or enter.
+    ExpectPassSleep enter
+
+Host ctrl-expect
+    HostName ctrl.example.com
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlPersist 10m
+    CtrlExpectCount 1
+    CtrlExpectPattern1 *assword
+    CtrlExpectSendPass1 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+
+# -----------------------------------------------------------------------------
+# Minimal practical template
+# -----------------------------------------------------------------------------
+#
+# Copy this block and edit HostName/User/GroupLabels/IdentityFile as needed.
+
+Host my-server
+    HostName 203.0.113.10
+    User myuser
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+    GroupLabels personal
+    EnableDragFile yes
+    EnableOSC52 yes

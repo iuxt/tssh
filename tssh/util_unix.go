@@ -73,24 +73,6 @@ func isRemoteSshEnv(pid int) bool {
 	return false
 }
 
-func isDockerEnv() bool {
-	if _, err := os.Stat("/.dockerenv"); !os.IsNotExist(err) {
-		return true
-	}
-	cgroup, err := os.ReadFile("/proc/self/cgroup")
-	if err != nil {
-		return false
-	}
-	return bytes.Contains(cgroup, []byte(":/docker/"))
-}
-
-func isNoGUI() bool {
-	if os.Getenv("DISPLAY") != "" {
-		return false
-	}
-	return isDockerEnv() || isRemoteSshEnv(os.Getppid()) || isSshTmuxEnv()
-}
-
 func getIterm2Manager() terminalManager {
 	return nil
 }

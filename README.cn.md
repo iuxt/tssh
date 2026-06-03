@@ -214,7 +214,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
 - 如果目标机器参数是 `~/.ssh/config` 中别名的一部分，不能完全匹配某个别名，也会打开登录界面。
 
-- 如果配置了 `#!! HideHost yes`，或者别名中含有 `*` 或 `?` 通配符时，则不会显示在登录界面中。
+- 如果配置了 `HideHost yes`，或者别名中含有 `*` 或 `?` 通配符时，则不会显示在登录界面中。
 
 - `tssh` 支持很多快捷键，支持搜索，在 `tmux`、`iTerm2` 和 `Windows Terminal` 等中使用时支持多选。
 
@@ -360,7 +360,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host *
-    # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
     EnableDragFile Yes
     DragFileUploadCommand rz
   ```
@@ -371,7 +371,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host no_zmodem
-    # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
     EnableZmodem No
   ```
 
@@ -428,12 +428,12 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 - 支持以通配符 \* 的形式，在多个 Host 节点配置分组标签，`tssh` 会将所有的标签汇总起来。
 
   ```
-  # 以下 testAA 具有标签 group1 group2 label3 label4 group5，可以加上 `#!!` 前缀，以兼容标准 ssh
+  # 以下 testAA 具有标签 group1 group2 label3 label4 group5
   Host test*
-      #!! GroupLabels group1 group2
-      #!! GroupLabels label3
+      GroupLabels group1 group2
+      GroupLabels label3
   Host testAA
-      #!! GroupLabels label4 group5
+      GroupLabels label4 group5
   ```
 
 ### 自动交互
@@ -442,13 +442,13 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host auto
-      #!! ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
-      #!! ExpectTimeout 30  # 配置自动交互的超时时间（单位：秒），默认是 30 秒
-      #!! ExpectPattern1 *assword  # 配置第一个自动交互的匹配表达式
+      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectTimeout 30  # 配置自动交互的超时时间（单位：秒），默认是 30 秒
+      ExpectPattern1 *assword  # 配置第一个自动交互的匹配表达式
       # 配置第一个自动输入（密文），这是由 tssh --enc-secret 编码得到的字符串，tssh 会自动发送 \r 回车
-      #!! ExpectSendPass1 d7983b4a8ac204bd073ed04741913befd4fbf813ad405d7404cb7d779536f8b87e71106d7780b2
-      #!! ExpectPattern2 hostname*$  # 配置第二个自动交互的匹配表达式
-      #!! ExpectSendText2 echo tssh expect\r  # 配置第二个自动输入（明文），需要指定 \r 才会发送回车
+      ExpectSendPass1 d7983b4a8ac204bd073ed04741913befd4fbf813ad405d7404cb7d779536f8b87e71106d7780b2
+      ExpectPattern2 hostname*$  # 配置第二个自动交互的匹配表达式
+      ExpectSendText2 echo tssh expect\r  # 配置第二个自动输入（明文），需要指定 \r 才会发送回车
       # 以上 ExpectSendPass? 和 ExpectSendText? 只要二选一即可，若都配置则 ExpectSendPass? 的优先级更高
   ```
 
@@ -456,48 +456,48 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host case
-      #!! ExpectCount 1  # 配置自动交互的次数，默认是 0 即无自动交互
-      #!! ExpectPattern1 hostname*$  # 配置第一个自动交互的匹配表达式
-      #!! ExpectSendText1 ssh xxx\r  # 配置第一个自动输入，也可以换成 ExpectSendPass1 然后配置密文
-      #!! ExpectCaseSendText1 yes/no y\r  # 在 ExpectPattern1 匹配之前，若遇到 yes/no 则发送 y 并回车
-      #!! ExpectCaseSendText1 y/n yes\r   # 在 ExpectPattern1 匹配之前，若遇到 y/n 则发送 yes 并回车
-      #!! ExpectCaseSendPass1 token d7... # 在 ExpectPattern1 匹配之前，若遇到 token 则解码 d7... 并发送
+      ExpectCount 1  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectPattern1 hostname*$  # 配置第一个自动交互的匹配表达式
+      ExpectSendText1 ssh xxx\r  # 配置第一个自动输入，也可以换成 ExpectSendPass1 然后配置密文
+      ExpectCaseSendText1 yes/no y\r  # 在 ExpectPattern1 匹配之前，若遇到 yes/no 则发送 y 并回车
+      ExpectCaseSendText1 y/n yes\r   # 在 ExpectPattern1 匹配之前，若遇到 y/n 则发送 yes 并回车
+      ExpectCaseSendPass1 token d7... # 在 ExpectPattern1 匹配之前，若遇到 token 则解码 d7... 并发送
   ```
 
 - 在匹配到指定输出时，自动生成 `totp` 2FA 双因子验证码，然后自动输入，用法如下：
 
   ```
   Host totp
-      #!! ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
-      #!! ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
-      #!! ExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
-      #!! ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
+      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
+      ExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
+      ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
       # 下面是运行 tssh --enc-secret 输入 totp 的 secret 得到的密文串
-      #!! ExpectSendEncTotp2 821fe830270201c36cd1a869876a24453014ac2f1d2d3b056f3601ce9cc9a87023
+      ExpectSendEncTotp2 821fe830270201c36cd1a869876a24453014ac2f1d2d3b056f3601ce9cc9a87023
   ```
 
 - 在匹配到指定输出时，执行指定的命令获取动态密码，然后自动输入，用法如下：
 
   ```
   Host otp
-      #!! ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
-      #!! ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
-      #!! ExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
-      #!! ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
+      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
+      ExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
+      ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
       # 下面是运行 tssh --enc-secret 输入命令 oathtool --totp -b xxxxx 得到的密文串
-      #!! ExpectSendEncOtp2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
+      ExpectSendEncOtp2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
   ```
 
 - 可能有些服务器不支持连着发送数据，如输入 `1\r`，要求在 `1` 之后有一点延迟，然后再 `\r` 回车，则可以用 `\|` 间开。
 
   ```
   Host sleep
-      #!! ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
-      #!! ExpectSleepMS 100  # 当要间开输入时，sleep 的毫秒数，默认 100ms
-      #!! ExpectPattern1 x>  # 配置第一个自动交互的匹配表达式
-      #!! ExpectSendText1 1\|\r  # 配置第一个自动输入，在发送 1 之后，先 sleep 100ms，再发送 \r 回车
-      #!! ExpectPattern2 y>  # 配置第二个自动交互的匹配表达式
-      #!! ExpectSendText2 \|1\|\|\r  # 先 sleep 100ms，然后发送 1，再 sleep 200ms，最后发送 \r 回车
+      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectSleepMS 100  # 当要间开输入时，sleep 的毫秒数，默认 100ms
+      ExpectPattern1 x>  # 配置第一个自动交互的匹配表达式
+      ExpectSendText1 1\|\r  # 配置第一个自动输入，在发送 1 之后，先 sleep 100ms，再发送 \r 回车
+      ExpectPattern2 y>  # 配置第二个自动交互的匹配表达式
+      ExpectSendText2 \|1\|\|\r  # 先 sleep 100ms，然后发送 1，再 sleep 200ms，最后发送 \r 回车
   ```
 
 - 有些服务器连密码也不支持连着发送，则需要配置 `ExpectPassSleep`，默认为 `no`，可配置为 `each` 或 `enter`：
@@ -520,12 +520,12 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 - 下面配置 `test1` 和 `test2` 的密码是 `123456`，其他以 `test` 开头的密码是 `111111`：
 
   ```
-  # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+  # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
   Host test1
       # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      #!! encPassword 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
+      encPassword 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
 
-  # 如果配置在 ~/.ssh/password 中，则不需要考虑是否兼容标准 ssh
+  # 如果配置在 ExConfigPath 中，标准 ssh 不会读取这些 tssh 专有配置
   Host test2
       # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
       encPassword 051a2f0fdc7d0d40794b845967df4c2d05b5eb0f25339021dc4e02a9d7620070654b
@@ -542,32 +542,32 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
   ```
   Host test1
       # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      #!! encQuestionAnswer1 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
+      encQuestionAnswer1 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
   ```
 
 - 如果启用了 `ControlMaster` 多路复用，或者是在旧版本 `Warp` 终端，需要使用前面 `自动交互` 的方式实现记住密码的效果。配置方式请参考前面 `自动交互`，加上 `Ctrl` 前缀即可，如：
 
   ```
   Host ctrl
-      #!! CtrlExpectCount 1  # 配置自动交互的次数，一般只要输入一次密码
-      #!! CtrlExpectPattern1 *assword    # 配置密码提示语的匹配表达式
-      #!! CtrlExpectSendPass1 d7983b...  # 配置 tssh --enc-secret 编码后的密码
+      CtrlExpectCount 1  # 配置自动交互的次数，一般只要输入一次密码
+      CtrlExpectPattern1 *assword    # 配置密码提示语的匹配表达式
+      CtrlExpectSendPass1 d7983b...  # 配置 tssh --enc-secret 编码后的密码
   ```
 
 - 支持记住私钥的`Passphrase`（ 推荐使用 `ssh-agent` ）。支持与 `IdentityFile` 一起配置, 支持使用私钥文件名代替 Host 别名设置通用密钥的 `Passphrase`。举例：
 
   ```
-  # IdentityFile 和 Passphrase 一起配置，可以加上 `#!!` 前缀，以兼容标准 ssh
+  # IdentityFile 和 Passphrase 一起配置
   Host test1
       IdentityFile /path/to/id_rsa
       # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      #!! encPassphrase 6f419911555b0cdc84549ae791ef69f654118d734bb4351de7e83163726ef46d176a
+      encPassphrase 6f419911555b0cdc84549ae791ef69f654118d734bb4351de7e83163726ef46d176a
 
   # 在 ~/.ssh/config 中配置通用私钥 ~/.ssh/id_ed25519 对应的 Passphrase
   # 可以加上通配符 * 以避免 tssh 搜索和选择时，文件名出现在服务器列表中。
   Host id_ed25519*
       # 下面是运行 tssh --enc-secret 输入密码 111111 得到的密文串，每次运行结果不同。
-      #!! encPassphrase 3a929328f2ab1be0ba3fccf29e8125f8e2dac6dab73c946605cf0bb8060b05f02a68
+      encPassphrase 3a929328f2ab1be0ba3fccf29e8125f8e2dac6dab73c946605cf0bb8060b05f02a68
 
   # 在 ~/.ssh/password 中配置则不需要通配符*，也不会出现在服务器列表中。
   Host id_rsa
@@ -597,32 +597,32 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
   ```
   # gopass (https://github.com/gopass-io/gopass)
   Host server1
-      #!! PasswordCommand gopass show -o ssh/%n
-      #!! PassphraseCommand gopass show -o ssh/%n/passphrase
+      PasswordCommand gopass show -o ssh/%n
+      PassphraseCommand gopass show -o ssh/%n/passphrase
 
   # pass (https://www.passwordstore.org)
   Host server2
-      #!! PasswordCommand pass show ssh/%n
+      PasswordCommand pass show ssh/%n
 
   # 1Password CLI
   Host server3
-      #!! PasswordCommand op read "op://Vault/ssh-%n/password"
+      PasswordCommand op read "op://Vault/ssh-%n/password"
 
   # macOS 钥匙串
   Host server4
-      #!! PasswordCommand security find-generic-password -a %r -s %n -w
+      PasswordCommand security find-generic-password -a %r -s %n -w
 
   # Bitwarden CLI
   Host server5
-      #!! PasswordCommand bw get password ssh-%n
+      PasswordCommand bw get password ssh-%n
 
   # HashiCorp Vault
   Host server6
-      #!! PasswordCommand vault kv get -field=password secret/ssh/%n
+      PasswordCommand vault kv get -field=password secret/ssh/%n
 
   # 为所有主机使用统一命令
   Host *
-      #!! PasswordCommand gopass show -o ssh/%n
+      PasswordCommand gopass show -o ssh/%n
   ```
 
 ### 记住答案
@@ -634,7 +634,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 - 使用 `tssh --debug` 登录，会输出问题的 hex 编码，从而知道该如何使用 hex 编码进行配置。配置举例：
 
   ```
-  # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+  # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
   Host test1
       # 下面是运行 tssh --enc-secret 输入答案 `答案一` 得到的密文串，每次运行结果不同。
       encQuestionAnswer1 482de7690ccc5229299ccadd8de1cb7c6d842665f0dc92ff947a302f644817baecbab38601
@@ -676,24 +676,24 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host custom_otp_command
-      #!! OtpCommand1 /path/to/your_own_program %q
-      #!! OtpCommand2 python C:\your_python_code.py %q
+      OtpCommand1 /path/to/your_own_program %q
+      OtpCommand2 python C:\your_python_code.py %q
   ```
 
 - 如果启用了 `ControlMaster` 多路复用，或者是在旧版本 `Warp` 终端，请参考前面 `自动交互` 加 `Ctrl` 前缀来实现。
 
   ```
   Host ctrl_totp
-      #!! CtrlExpectCount 1  # 配置自动交互的次数
-      #!! CtrlExpectPattern1 code:  # 配置密码提示语的匹配表达式（这里以 2FA 验证码举例）
-      #!! CtrlExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
-      #!! CtrlExpectSendEncTotp1 622ada31cf...  # 或者配置 tssh --enc-secret 得到的密文串
+      CtrlExpectCount 1  # 配置自动交互的次数
+      CtrlExpectPattern1 code:  # 配置密码提示语的匹配表达式（这里以 2FA 验证码举例）
+      CtrlExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
+      CtrlExpectSendEncTotp1 622ada31cf...  # 或者配置 tssh --enc-secret 得到的密文串
 
   Host ctrl_otp
-      #!! CtrlExpectCount 1  # 配置自动交互的次数
-      #!! CtrlExpectPattern1 token:  # 配置密码提示语的匹配表达式（这里以动态密码举例）
-      #!! CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
-      #!! CtrlExpectSendEncOtp1 77b4ce85d0...  # 或者配置 tssh --enc-secret 得到的密文串
+      CtrlExpectCount 1  # 配置自动交互的次数
+      CtrlExpectPattern1 token:  # 配置密码提示语的匹配表达式（这里以动态密码举例）
+      CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
+      CtrlExpectSendEncOtp1 77b4ce85d0...  # 或者配置 tssh --enc-secret 得到的密文串
   ```
 
 ### 个性配置
@@ -745,16 +745,16 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
 ### 配置注释
 
-- `tssh` 配置中的注释基本与 `openssh` 一致，额外做了一些扩展支持，详见下表：
+- `tssh` 配置中的注释基本与 `openssh` 一致，详见下表：
 
   | 注释                  | openssh |  tssh  |
   | :-------------------- | :-----: | :----: |
   | `#` 开头的配置行      | 是注释  | 是注释 |
-  | `#!!` 开头的配置行    | 是注释  | 非注释 |
+  | `#!!` 开头的配置行    | 是注释  | 是注释 |
   | `Key Value # Comment` | 看情况  | 是注释 |
   | `Key=Value # Comment` | 看情况  | 非注释 |
 
-- `#` 开头的配置行，`openssh` 一律认为是注释；`tssh` 认为 `#!!` 开头的配置行不是注释，其他以 `#` 开头的配置行是注释。
+- `#` 开头的配置行，包括 `#!!` 开头的配置行，`openssh` 和 `tssh` 都会认为是注释。
 - `Key Value # Comment` 配置（没有 `=` 号），`openssh` 有些情况认为 `#` 后的内容是注释，有些情况认为不是注释；`tssh` 一律认为 `#` 后的内容是注释。
 - `Key=Value # Comment` 配置（有 `=` 号），`openssh` 有些情况认为 `#` 后的内容是注释，有些情况认为不是注释；`tssh` 一律认为 `#` 后的内容不是注释。
 
@@ -764,7 +764,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host xxx
-    # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
     EnableWaypipe Yes
   ```
 
@@ -778,11 +778,11 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host xxx
-    #!! EnableWaypipe Yes
-    #!! WaypipeClientPath /usr/bin/waypipe
-    #!! WaypipeServerPath /usr/bin/waypipe
-    #!! WaypipeClientOption -c lz4
-    #!! WaypipeServerOption -c lz4
+    EnableWaypipe Yes
+    WaypipeClientPath /usr/bin/waypipe
+    WaypipeServerPath /usr/bin/waypipe
+    WaypipeClientOption -c lz4
+    WaypipeServerOption -c lz4
   ```
 
 ### 剪贴板集成
@@ -791,7 +791,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host *
-    # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
     EnableOSC52 Yes
   ```
 
@@ -816,7 +816,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
   ```
   Host xxx
     EscapeChar ~
-    #!! ConsoleEscapeTime 1
+    ConsoleEscapeTime 1
   ```
 
 ### 其他功能
@@ -828,7 +828,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host server2
-    # 如果配置在 ~/.ssh/config 中，可以加上 `#!!` 前缀，以兼容标准 ssh
+    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
     encPassword de88c4dbdc95d85303682734e2397c4d8dd29bfff09ec53580f31dd40291fc8c7755
     encQuestionAnswer1 93956f6e7e9f2aef3af7d6a61f7046dddf14aa4bbd9845dbb836fe3782b62ac0d89f
   ```
@@ -855,7 +855,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
   ```
   Host xxx
-    #!! DnsSrvName myhost.mydomain.com
+    DnsSrvName myhost.mydomain.com
   ```
 
 ### 重连模式
@@ -900,7 +900,7 @@ trzsz-ssh ( tssh ) 设计为 ssh 客户端的直接替代品，提供与 openssh
 
 - 如果在 `~/.ssh/config` 中配置了 `tssh` 特有的配置项后，标准 `ssh` 报错 `Bad configuration option`。
 
-  - 可以在出错配置项中加上前缀 `#!!`，标准 `ssh` 会将它当作注释，而 `tssh` 则会认为它是有效配置之一。
+  - 请将 tssh 专有配置移动到 `ExConfigPath`，或者移动到仅供 `tssh` 使用的配置文件中；`#!!` 开头的配置行对 OpenSSH 和 tssh 都是注释。
 
 ### 联系方式
 

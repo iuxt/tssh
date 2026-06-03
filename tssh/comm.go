@@ -74,7 +74,6 @@ const (
 
 var debugLogFile *os.File
 var debugLogFileName string
-var maxHostNameLength int
 var debugStderrWriter *os.File
 var debugWriteMutex sync.Mutex
 
@@ -125,33 +124,6 @@ func closeDebugLogFile() {
 
 	_ = debugLogFile.Close()
 	debugLogFile = nil
-}
-
-func writeDebugLog(msec int64, host, log string) {
-	if !enableDebugLogging {
-		return
-	}
-
-	line := fmt.Sprintf("%s | %-*s | %s\n", time.UnixMilli(msec).Format("15:04:05.000"), maxHostNameLength, host, log)
-
-	ok, err := func() (bool, error) {
-		debugWriteMutex.Lock()
-		defer debugWriteMutex.Unlock()
-		if debugLogFile == nil {
-			return false, nil
-		}
-		if _, err := debugLogFile.WriteString(line); err != nil {
-			return false, fmt.Errorf("write debug log to [%s] failed: %v", debugLogFileName, err)
-		}
-		return true, nil
-	}()
-
-	if err != nil {
-		debug("%v", err)
-	}
-	if !ok {
-		debug("%s", line[:len(line)-1])
-	}
 }
 
 func initTmuxDebugPane() {

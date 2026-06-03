@@ -29,17 +29,15 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var TableStyle = func(row, col int) lipgloss.Style {
-	switch {
-	case row == 0:
-		return lipgloss.NewStyle().Padding(0, 1).Align(lipgloss.Center)
-	case row%2 == 0:
-		return lipgloss.NewStyle().Padding(0, 1)
-	default:
-		return lipgloss.NewStyle().Padding(0, 1)
+	style := lipgloss.NewStyle().Padding(0, 1)
+	if row == 0 {
+		return style.Align(lipgloss.Center)
 	}
+	return style
 }
 
 func TestTable(t *testing.T) {
@@ -65,15 +63,14 @@ func TestTable(t *testing.T) {
 └──────────┴──────────────┴───────────┘
 `)
 
-	if table.String() != expected {
-		t.Fatalf("expected:\n\n%s\n\ngot:\n\n%s", expected, table.String())
+	if actual := ansi.Strip(table.String()); actual != expected {
+		t.Fatalf("expected:\n\n%s\n\ngot:\n\n%s", expected, actual)
 	}
 }
 
 func TestTableExample(t *testing.T) {
 	HeaderStyle := lipgloss.NewStyle().Padding(0, 1).Align(lipgloss.Center)
-	EvenRowStyle := lipgloss.NewStyle().Padding(0, 1)
-	OddRowStyle := lipgloss.NewStyle().Padding(0, 1)
+	RowStyle := lipgloss.NewStyle().Padding(0, 1)
 
 	rows := [][]string{
 		{"Chinese", "您好", "你好"},
@@ -89,10 +86,8 @@ func TestTableExample(t *testing.T) {
 			switch {
 			case row == 0:
 				return HeaderStyle
-			case row%2 == 0:
-				return EvenRowStyle
 			default:
-				return OddRowStyle
+				return RowStyle
 			}
 		}).
 		Headers("LANGUAGE", "FORMAL", "INFORMAL").
@@ -113,8 +108,8 @@ func TestTableExample(t *testing.T) {
 └──────────┴───────────────────────────────┴─────────────────┘
 `)
 
-	if table.String() != expected {
-		t.Fatalf("expected:\n\n%s\n\ngot:\n\n%s", expected, table.String())
+	if actual := ansi.Strip(table.String()); actual != expected {
+		t.Fatalf("expected:\n\n%s\n\ngot:\n\n%s", expected, actual)
 	}
 }
 

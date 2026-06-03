@@ -54,20 +54,6 @@ func isRemoteSshEnv(pid int) bool {
 	return false
 }
 
-func isDockerEnv() bool {
-	if _, err := os.Stat("/.dockerenv"); !os.IsNotExist(err) {
-		return true
-	}
-	return false
-}
-
-func isNoGUI() bool {
-	if os.Getenv("DISPLAY") != "" {
-		return false
-	}
-	return isDockerEnv() || isRemoteSshEnv(os.Getppid()) || isSshTmuxEnv()
-}
-
 var initIterm2Once sync.Once
 var iterm2Session *iterm2.Session
 

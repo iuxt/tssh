@@ -1,0 +1,6 @@
+Host quote
+  XAuthLocation "/usr/bin/xauth"
+  IdentityAgent "~/Library/Group Containers/x x x/agent.sock"
+  UserKnownHostsFile = ~/.ssh/kh1 ~/.ssh/kh2 "~/.ssh/k h 3"
+  SetEnv 'LC_A=1' LC_B='2 3' 'LC_C=4 5 6'
+  SetEnv "LC_D = 7 \"8 9\""

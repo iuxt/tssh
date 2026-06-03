@@ -3,7 +3,6 @@ module trzsz-ssh
 go 1.25.0
 
 require (
-	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.6
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/Microsoft/go-winio v0.6.2
@@ -76,3 +75,5 @@ require (
 )
 
 replace github.com/trzsz/trzsz-go => ./third_party/trzsz-go
+
+replace github.com/trzsz/ssh_config => ./third_party/ssh_config

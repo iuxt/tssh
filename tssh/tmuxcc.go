@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -159,92 +158,5 @@ func detachTmuxIntegration() {
 	if isRunningTmuxIntegration() {
 		_, _ = os.Stderr.Write([]byte("%exit\r\n")) // force exit tmux integration
 		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func handleAndDecodeTmuxInput(buf []byte) ([]byte, []byte, string, bool) {
-	var detach bool
-	var input []byte
-	var paneId string
-	parts := bytes.Split(buf, []byte{'\r'})
-
-	now := time.Now().Unix()
-	ack := fmt.Appendf(nil, "%%begin %d 1 1\r\n%%end %d 1 1\r\n", now, now)
-
-	n := len(parts) - 1
-	for i := range n {
-		for cmd := range bytes.SplitSeq(parts[i], []byte{';'}) {
-			_, _ = os.Stderr.Write(ack)
-
-			tokens := strings.Fields(string(bytes.TrimSpace(cmd)))
-			if len(tokens) > 0 && tokens[0] == "detach" {
-				detach = true
-			}
-			if len(tokens) < 3 {
-				continue
-			}
-
-			switch tokens[0] {
-			case "send":
-				switch tokens[1] {
-				case "-lt":
-					paneId = tokens[2]
-					if len(tokens) > 3 {
-						input = append(input, []byte(tokens[3])...)
-					}
-				case "-t":
-					paneId = tokens[2]
-					if len(tokens) > 3 {
-						for _, hex := range tokens[3:] {
-							if strings.HasPrefix(hex, "0x") {
-								if char, err := strconv.ParseUint(string(hex[2:]), 16, 8); err == nil {
-									input = append(input, byte(char))
-								}
-							}
-						}
-					}
-				}
-			case "select-pane", "display-message":
-				if tokens[1] == "-t" {
-					paneId = tokens[2]
-				}
-			}
-		}
-	}
-
-	last := parts[n]
-	if len(last) == 0 {
-		last = nil
-	}
-
-	paneId = strings.Trim(paneId, `"'`)
-	if len(paneId) > 0 {
-		if paneId[0] == '%' {
-			paneId = paneId[1:]
-		} else {
-			paneId = ""
-		}
-	}
-	if paneId != "" {
-		if _, err := strconv.ParseUint(paneId, 10, 32); err != nil {
-			paneId = ""
-		}
-	}
-
-	return input, last, paneId, detach
-}
-
-func handleTmuxDiscardedInput(input []byte) {
-	if len(input) == 0 || !isRunningTmuxIntegration() {
-		return
-	}
-
-	// iTerm2 expects to receive the %begin %end block
-	now := time.Now().Unix()
-	ack := fmt.Appendf(nil, "%%begin %d 1 1\r\n%%end %d 1 1\r\n", now, now)
-	for _, b := range input {
-		if b == ';' || b == '\r' {
-			_, _ = os.Stderr.Write(ack)
-		}
 	}
 }

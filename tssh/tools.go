@@ -27,36 +27,24 @@ package tssh
 import (
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 )
 
 var (
-	redColor     = lipgloss.Color("1")
-	greenColor   = lipgloss.Color("2")
-	yellowColor  = lipgloss.Color("3")
-	blueColor    = lipgloss.Color("4")
-	magentaColor = lipgloss.Color("5")
-	cyanColor    = lipgloss.Color("6")
-	blackColor   = lipgloss.Color("16")
+	redColor    = lipgloss.Color("1")
+	greenColor  = lipgloss.Color("2")
+	yellowColor = lipgloss.Color("3")
+	cyanColor   = lipgloss.Color("6")
+	blackColor  = lipgloss.Color("16")
 )
-
-func hideCursor(writer io.Writer) {
-	_, _ = writer.Write([]byte("\x1b[?25l"))
-}
-
-func showCursor(writer io.Writer) {
-	_, _ = writer.Write([]byte("\x1b[?25h"))
-}
 
 var stdinFallbackBuf []byte
 var stdinFallbackMu sync.Mutex
@@ -113,67 +101,6 @@ func newTeaOptions(fallbackFn func([]byte)) ([]tea.ProgramOption, func()) {
 	}, func() { trr.cancelled.Store(true) }
 }
 
-type toolsProgress struct {
-	prefix        string
-	totalSize     int
-	currentStep   int
-	progressTimer *time.Timer
-}
-
-func newToolsProgress(tool, name string, totalSize int) *toolsProgress {
-	hideCursor(os.Stderr)
-	p := &toolsProgress{prefix: fmt.Sprintf("[%s] %s", tool, name), totalSize: totalSize}
-	p.progressTimer = time.AfterFunc(100*time.Millisecond, p.showProgress)
-	return p
-}
-
-func (p *toolsProgress) writeMessage(format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "\r\033[0;36m%s %s\033[0m", p.prefix, msg)
-}
-
-func (p *toolsProgress) addStep(delta int) {
-	p.currentStep += delta
-	if p.currentStep >= p.totalSize {
-		p.writeMessage("%d%%", 100)
-		p.stopProgress()
-	}
-}
-
-func (p *toolsProgress) showProgress() {
-	percentage := int(math.Round(float64(p.currentStep) * 100 / float64(p.totalSize)))
-	if percentage >= 100 {
-		return
-	}
-	p.writeMessage("%d%%", percentage)
-	p.progressTimer = time.AfterFunc(time.Second, p.showProgress)
-}
-
-func (p *toolsProgress) stopProgress() {
-	if p.progressTimer == nil {
-		return
-	}
-	p.progressTimer.Stop()
-	p.progressTimer = nil
-	p.writeMessage("\r\n")
-	showCursor(os.Stderr)
-}
-
-func toolsInfo(tool, format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "\033[0;36m[%s] %s\033[0m\r\n", tool, msg)
-}
-
-func toolsWarn(tool, format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "\033[0;33m[%s] %s\033[0m\r\n", tool, msg)
-}
-
-func toolsSucc(tool, format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "\033[0;32m[%s] %s\033[0m\r\n", tool, msg)
-}
-
 func toolsErrorExit(format string, a ...any) {
 	msg := fmt.Sprintf(format, a...)
 	fmt.Fprintf(os.Stderr, "\033[0;31m%s\033[0m\r\n", msg)
@@ -183,140 +110,6 @@ func toolsErrorExit(format string, a ...any) {
 
 type inputValidator struct {
 	validate func(string) error
-}
-
-type textInputModel struct {
-	promptLabel  string
-	defaultValue string
-	helpMessage  string
-	textInput    textinput.Model
-	validator    *inputValidator
-	done         bool
-	quit         bool
-	err          error
-}
-
-func (m *textInputModel) Init() tea.Cmd {
-	return textinput.Blink
-}
-
-func (m *textInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		switch keypress := msg.String(); keypress {
-		case "ctrl+c":
-			m.quit = true
-			return m, tea.Quit
-		case "ctrl+w":
-			m.textInput.SetValue("")
-			return m, nil
-		case "enter":
-			err := m.validator.validate(m.getValue())
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.done = true
-			return m, tea.Quit
-		default:
-			m.err = nil
-		}
-	case error:
-		m.err = msg
-		return m, nil
-	}
-
-	var cmd tea.Cmd
-	m.textInput, cmd = m.textInput.Update(msg)
-	return m, cmd
-}
-
-func (m *textInputModel) View() tea.View {
-	if m.done {
-		return tea.NewView(fmt.Sprintf("%s%s%s\n\n", lipgloss.NewStyle().Foreground(greenColor).Render(m.promptLabel),
-			lipgloss.NewStyle().Faint(true).Render(": "), m.getValue()))
-	}
-
-	var builder strings.Builder
-	builder.WriteString(lipgloss.NewStyle().Foreground(cyanColor).Render(m.promptLabel))
-	if m.defaultValue != "" {
-		builder.WriteByte('(')
-		builder.WriteString(lipgloss.NewStyle().Foreground(magentaColor).Render(m.defaultValue))
-		builder.WriteByte(')')
-	}
-	if !m.quit {
-		builder.WriteString(m.textInput.View())
-	}
-	builder.WriteByte('\n')
-	if m.err != nil {
-		builder.WriteString(lipgloss.NewStyle().Foreground(redColor).Render(m.err.Error()))
-	} else if m.helpMessage != "" {
-		builder.WriteString(lipgloss.NewStyle().Faint(true).Render(m.helpMessage))
-	}
-	return tea.NewView(builder.String())
-}
-
-func (m *textInputModel) getValue() string {
-	value := m.textInput.Value()
-	if value == "" && m.defaultValue != "" {
-		return m.defaultValue
-	}
-	return strings.TrimSpace(value)
-}
-
-func promptTextInput(promptLabel, defaultValue, helpMessage string, validator *inputValidator) string {
-	teaOpts, cancelReader := newTeaOptions(nil)
-	defer cancelReader()
-
-	textInput := textinput.New()
-	textInput.Prompt = ": "
-	textInput.Focus()
-	m, err := tea.NewProgram(&textInputModel{
-		promptLabel:  promptLabel,
-		defaultValue: defaultValue,
-		helpMessage:  helpMessage,
-		textInput:    textInput,
-		validator:    validator,
-	}, teaOpts...).Run()
-
-	if model, ok := m.(*textInputModel); err == nil && ok {
-		if model.quit {
-			cleanupOnExit()
-			os.Exit(0)
-		}
-		return model.getValue()
-	}
-	toolsErrorExit("input error: %v", err)
-	return ""
-}
-
-func promptBoolInput(promptLabel, helpMessage string, defaultValue bool) bool {
-	var defaultLabel string
-	if defaultValue {
-		defaultLabel = "Y/n"
-	} else {
-		defaultLabel = "y/N"
-	}
-	input := promptTextInput(promptLabel, defaultLabel, helpMessage,
-		&inputValidator{func(input string) error {
-			switch strings.ToLower(input) {
-			case "", "y", "yes", "n", "no", "y/n":
-				return nil
-			default:
-				return fmt.Errorf("invalid input")
-			}
-		}})
-	switch strings.ToLower(input) {
-	case "", "y/n":
-		return defaultValue
-	case "y", "yes":
-		return true
-	case "n", "no":
-		return false
-	default:
-		toolsErrorExit("unknown bool input: %s", input)
-		return false
-	}
 }
 
 type passwordModel struct {

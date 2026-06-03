@@ -29,10 +29,7 @@ package tssh
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"syscall"
 
@@ -113,26 +110,6 @@ func getStderrOutput() (*os.File, func(), error) {
 	}
 
 	return file, func() { _ = file.Close() }, nil
-}
-
-func isSshTmuxEnv() bool {
-	if _, tmux := os.LookupEnv("TMUX"); !tmux {
-		return false
-	}
-
-	cmd := exec.Command("tmux", "display-message", "-p", "#{client_pid}")
-	cmd.Stdin = os.Stdin
-	out, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(out)))
-	if err != nil {
-		return false
-	}
-
-	return isRemoteSshEnv(pid)
 }
 
 func splitCommandLine(command string) ([]string, error) {
