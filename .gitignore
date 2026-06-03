@@ -24,4 +24,3 @@ debian/files
 *.swo
 
 dist/
-vendor/
