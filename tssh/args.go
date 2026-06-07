@@ -87,7 +87,7 @@ type sshArgs struct {
 }
 
 func (sshArgs) Description() string {
-	return "trzsz-ssh(tssh): Highly OpenSSH-compatible client with extended features.\n"
+	return "tssh: Highly OpenSSH-compatible client with extended features.\n"
 }
 
 func (o *sshOption) UnmarshalText(b []byte) error {

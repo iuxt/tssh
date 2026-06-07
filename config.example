@@ -1,4 +1,4 @@
-# trzsz-ssh / tssh example configuration
+# tssh example configuration
 #
 # This file demonstrates the SSH-style configuration loaded by tssh from
 # `ConfigPath` and `ExConfigPath`.

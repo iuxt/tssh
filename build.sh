@@ -1,5 +1,5 @@
 #!/bin/bash
-go build .
-mv trzsz-ssh  ~/iCloud/bin/tssh
+set -euo pipefail
 
-
+mkdir -p "$HOME/iCloud/bin"
+go build -o "$HOME/iCloud/bin/tssh" .

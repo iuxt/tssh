@@ -40,7 +40,7 @@ var buildTag = ""
 
 func getTsshVersion() string {
 	var version strings.Builder
-	version.WriteString("trzsz ssh ")
+	version.WriteString("tssh ")
 	version.WriteString(kTsshVersion)
 
 	if buildTag != "" {
@@ -89,7 +89,7 @@ func getTsshVersion() string {
 }
 
 func printVersionShort() int {
-	fmt.Println("trzsz ssh " + kTsshVersion)
+	fmt.Println("tssh " + kTsshVersion)
 	return 0
 }
 
