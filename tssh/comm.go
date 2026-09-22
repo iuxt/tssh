@@ -60,16 +60,11 @@ const (
 	kExitCodeStdinFailed          = 21
 	kExitCodeTransferFilterFailed = 22
 	kExitCodeOpenSession          = 23
-	kExitCodeReconnect            = 24
-
-	kExitCodeToolsError  = 101
-	kExitCodeJsonMarshal = 105
-
-	kExitCodeConsoleKill = 203
-	kExitCodeForceExit   = 204
-	kExitCodeKeepAlive   = 205
-	kExitCodeSignalKill  = 206
-	kExitCodeTmuxDetach  = 207
+	kExitCodeConsoleKill          = 203
+	kExitCodeForceExit            = 204
+	kExitCodeKeepAlive            = 205
+	kExitCodeSignalKill           = 206
+	kExitCodeTmuxDetach           = 207
 )
 
 var debugLogFile *os.File

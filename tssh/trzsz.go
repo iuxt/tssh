@@ -33,10 +33,9 @@ import (
 )
 
 type transferOptions struct {
-	enableZmodem   bool
-	enableDragFile bool
-	enableOSC52    bool
-	disableFilter  bool
+	enableZmodem  bool
+	enableOSC52   bool
+	disableFilter bool
 }
 
 func isConfigNo(value string) bool {
@@ -62,25 +61,12 @@ func getTransferOptions(args *sshArgs) transferOptions {
 	if isConfigNo(getExOptionConfig(args, "EnableZmodem")) {
 		enableZmodem = false
 	}
-	enableDragFile := args.DragFile || isConfigYes(getExOptionConfig(args, "EnableDragFile"))
 	enableOSC52 := isConfigYes(getExOptionConfig(args, "EnableOSC52"))
 	return transferOptions{
-		enableZmodem:   enableZmodem,
-		enableDragFile: enableDragFile,
-		enableOSC52:    enableOSC52,
-		disableFilter:  !enableZmodem && !enableDragFile && !enableOSC52,
+		enableZmodem:  enableZmodem,
+		enableOSC52:   enableOSC52,
+		disableFilter: !enableZmodem && !enableOSC52,
 	}
-}
-
-func getDragFileUploadCommand(args *sshArgs) string {
-	dragFileUploadCommand := getExOptionConfig(args, "DragFileUploadCommand")
-	if dragFileUploadCommand == "" {
-		dragFileUploadCommand = userConfig.dragFileUploadCommand
-	}
-	if dragFileUploadCommand == "" {
-		dragFileUploadCommand = "rz"
-	}
-	return dragFileUploadCommand
 }
 
 func setupTransferFilter(sshConn *sshConnection) error {
@@ -121,9 +107,7 @@ func setupTransferFilter(sshConn *sshConnection) error {
 	if defaultDownloadPath == "" {
 		defaultDownloadPath = userConfig.defaultDownloadPath
 	}
-	dragFileUploadCommand := getDragFileUploadCommand(args)
-
-	// create a transfer filter for zmodem, drag upload, and OSC52
+	// create a transfer filter for zmodem and OSC52
 	//
 	//   os.Stdin  ┌────────┐   os.Stdin   ┌─────────────┐   ServerIn   ┌────────┐
 	// ───────────►│        ├─────────────►│             ├─────────────►│        │
@@ -134,8 +118,6 @@ func setupTransferFilter(sshConn *sshConnection) error {
 	//   os.Stderr └────────┘                  stderr                   └────────┘
 	trzszFilter := trzsz.NewTrzszFilter(clientIn, clientOut, serverIn, serverOut, trzsz.TrzszOptions{
 		TerminalColumns: int32(width),
-		DetectDragFile:  options.enableDragFile,
-		DetectTraceLog:  args.TraceLog,
 		EnableZmodem:    options.enableZmodem,
 		EnableOSC52:     options.enableOSC52,
 		DisableTrzsz:    true,
@@ -154,7 +136,6 @@ func setupTransferFilter(sshConn *sshConnection) error {
 	// setup transfer config
 	trzszFilter.SetDefaultUploadPath(defaultUploadPath)
 	trzszFilter.SetDefaultDownloadPath(defaultDownloadPath)
-	trzszFilter.SetDragFileUploadCommand(dragFileUploadCommand)
 	trzszFilter.SetProgressColorPair(userConfig.progressColorPair)
 
 	// setup redraw screen

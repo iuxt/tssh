@@ -32,7 +32,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/mattn/go-isatty"
 	"github.com/trzsz/go-arg"
@@ -44,48 +43,21 @@ func background(args *sshArgs, dest string) (bool, error) {
 		return false, nil
 	}
 
-	monitor := false
-	if v := os.Getenv("TRZSZ-SSH-BG-MONITOR"); v == "TRUE" {
-		monitor = true
-	}
-	env := os.Environ()
-	if args.Reconnect && !monitor {
-		env = append(env, "TRZSZ-SSH-BG-MONITOR=TRUE")
-	} else {
-		env = append(env, "TRZSZ-SSH-BACKGROUND=TRUE")
-	}
-
 	newArgs, err := replaceOrAppendDest(os.Args, args.Destination, dest)
 	if err != nil {
 		return true, err
 	}
 	exePath := getExePath(newArgs[0])
 
-	sleepTime := time.Duration(0)
-	for {
-		cmd := exec.Command(exePath, newArgs[1:]...)
-		cmd.Args = newArgs
-		cmd.Env = env
-		cmd.Stderr = os.Stderr
+	cmd := exec.Command(exePath, newArgs[1:]...)
+	cmd.Args = newArgs
+	cmd.Env = append(os.Environ(), "TRZSZ-SSH-BACKGROUND=TRUE")
+	cmd.Stderr = os.Stderr
 
-		if err := cmd.Start(); err != nil {
-			return true, fmt.Errorf("run in background failed: %v", err)
-		}
-		if !monitor {
-			return true, nil
-		}
-
-		beginTime := time.Now()
-		_ = cmd.Wait()
-		if time.Since(beginTime) < 10*time.Second {
-			if sleepTime < 10*time.Second {
-				sleepTime += time.Second
-			}
-			time.Sleep(sleepTime)
-		} else {
-			sleepTime = 0
-		}
+	if err := cmd.Start(); err != nil {
+		return true, fmt.Errorf("run in background failed: %v", err)
 	}
+	return true, nil
 }
 
 func getExePath(defaultPath string) string {
@@ -121,84 +93,6 @@ func replaceOrAppendDest(args []string, oldDest, newDest string) ([]string, erro
 	}
 
 	return newArgs, nil
-}
-
-func runWithReconnect(args *sshArgs, dest string) (err error) {
-	var newArgs []string
-	for _, arg := range os.Args {
-		if arg == "--reconnect" {
-			continue // skip --reconnect in child process
-		}
-		newArgs = append(newArgs, arg)
-	}
-
-	newArgs, err = replaceOrAppendDest(newArgs, args.Destination, dest)
-	if err != nil {
-		return err
-	}
-	exePath := getExePath(newArgs[0])
-
-	for {
-		cmd := exec.Command(exePath, newArgs[1:]...)
-		cmd.Args = newArgs
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("start child process failed: %v", err)
-		}
-
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
-		go func() {
-			for sig := range sigChan {
-				if cmd.Process != nil {
-					_ = cmd.Process.Signal(sig)
-				}
-			}
-		}()
-
-		_ = cmd.Wait()
-		signal.Stop(sigChan)
-		close(sigChan)
-
-		if !waitForEnter(cmd.ProcessState.ExitCode()) {
-			return nil
-		}
-	}
-}
-
-func waitForEnter(code int) bool {
-	color := "\033[32m"
-	if code != 0 {
-		color = "\033[31m"
-	}
-
-	fmt.Printf("%s[tssh child process exited with code %d]\033[0m\r\n"+
-		"Press Enter to restart and log in again, or Ctrl+C to exit.\r\n",
-		color, code)
-
-	state, err := makeStdinRaw()
-	if err != nil {
-		_, _ = fmt.Scanln()
-		return true
-	}
-	defer resetStdin(state)
-
-	var buf [1]byte
-	for {
-		n, err := os.Stdin.Read(buf[:])
-		if err != nil || n == 0 {
-			return false
-		}
-		switch buf[0] {
-		case '\r', '\n':
-			return true
-		case '\x03':
-			return false
-		}
-	}
 }
 
 var onExitFuncs []func()
@@ -294,11 +188,6 @@ func TsshMain(argv []string) int {
 		}
 	}
 
-	// execute local tools if necessary
-	if code, quit := execLocalTools(&args); quit {
-		return code
-	}
-
 	// choose ssh alias
 	dest := ""
 	quit := false
@@ -332,20 +221,6 @@ func TsshMain(argv []string) int {
 		if parent {
 			return 0
 		}
-	}
-
-	// prompt user to restart the program after exit
-	if args.Reconnect && isTerminal {
-		err = runWithReconnect(&args, dest)
-		if err != nil {
-			return kExitCodeReconnect
-		}
-		return 0
-	}
-
-	// custom DNS server
-	if args.Dns != "" {
-		setDNS(args.Dns)
 	}
 
 	// start ssh program

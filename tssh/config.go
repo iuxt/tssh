@@ -27,13 +27,7 @@ package tssh
 import (
 	"bufio"
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,33 +64,32 @@ type sshHost struct {
 }
 
 type tsshConfig struct {
-	language              string
-	configPath            string
-	sysConfigPath         string
-	exConfigPath          string
-	useOpenSSHConfig      bool
-	defaultUploadPath     string
-	defaultDownloadPath   string
-	dragFileUploadCommand string
-	progressColorPair     string
-	promptThemeLayout     string
-	promptThemeColors     map[string]string
-	promptPageSize        uint8
-	promptDefaultMode     string
-	promptDetailItems     string
-	promptCursorIcon      string
-	promptSelectedIcon    string
-	setTerminalTitle      string
-	loadConfig            sync.Once
-	loadExConfig          sync.Once
-	loadHosts             sync.Once
-	config                *ssh_config.Config
-	sysConfig             *ssh_config.Config
-	exConfig              *ssh_config.Config
-	loadDefaultColors     sync.Once
-	defaultThemeColors    map[string]string
-	allHosts              []*sshHost
-	wildcardPatterns      []*ssh_config.Pattern
+	language            string
+	configPath          string
+	sysConfigPath       string
+	exConfigPath        string
+	useOpenSSHConfig    bool
+	defaultUploadPath   string
+	defaultDownloadPath string
+	progressColorPair   string
+	promptThemeLayout   string
+	promptThemeColors   map[string]string
+	promptPageSize      uint8
+	promptDefaultMode   string
+	promptDetailItems   string
+	promptCursorIcon    string
+	promptSelectedIcon  string
+	setTerminalTitle    string
+	loadConfig          sync.Once
+	loadExConfig        sync.Once
+	loadHosts           sync.Once
+	config              *ssh_config.Config
+	sysConfig           *ssh_config.Config
+	exConfig            *ssh_config.Config
+	loadDefaultColors   sync.Once
+	defaultThemeColors  map[string]string
+	allHosts            []*sshHost
+	wildcardPatterns    []*ssh_config.Pattern
 }
 
 var userConfig *tsshConfig
@@ -174,8 +167,6 @@ func parseTsshConfig() {
 			userConfig.defaultUploadPath = resolveHomeDir(value)
 		case name == "defaultdownloadpath" && userConfig.defaultDownloadPath == "":
 			userConfig.defaultDownloadPath = resolveHomeDir(value)
-		case name == "dragfileuploadcommand" && userConfig.dragFileUploadCommand == "":
-			userConfig.dragFileUploadCommand = value
 		case name == "progresscolorpair" && userConfig.progressColorPair == "":
 			userConfig.progressColorPair = value
 		case name == "promptthemelayout" && userConfig.promptThemeLayout == "":
@@ -234,9 +225,6 @@ func showTsshConfig() {
 	}
 	if userConfig.defaultDownloadPath != "" {
 		debug("DefaultDownloadPath = %s", userConfig.defaultDownloadPath)
-	}
-	if userConfig.dragFileUploadCommand != "" {
-		debug("DragFileUploadCommand = %s", userConfig.dragFileUploadCommand)
 	}
 	if userConfig.progressColorPair != "" {
 		debug("ProgressColorPair = %s", userConfig.progressColorPair)
@@ -693,48 +681,6 @@ func getAllExOptionConfig(args *sshArgs, option string) []string {
 	return append(args.Option.getAll(option), getAllExConfig(args.Destination, option)...)
 }
 
-var secretEncodeKey = []byte("THE_UNSAFE_KEY_FOR_ENCODING_ONLY")
-
-func encodeSecret(secret []byte) (string, error) {
-	aesCipher, err := aes.NewCipher(secretEncodeKey)
-	if err != nil {
-		return "", err
-	}
-	aesGCM, err := cipher.NewGCM(aesCipher)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, aesGCM.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", aesGCM.Seal(nonce, nonce, secret, nil)), nil
-}
-
-func decodeSecret(secret string) (string, error) {
-	cipherSecret, err := hex.DecodeString(secret)
-	if err != nil {
-		return "", err
-	}
-	aesCipher, err := aes.NewCipher(secretEncodeKey)
-	if err != nil {
-		return "", err
-	}
-	aesGCM, err := cipher.NewGCM(aesCipher)
-	if err != nil {
-		return "", err
-	}
-	nonceSize := aesGCM.NonceSize()
-	if len(cipherSecret) < nonceSize {
-		return "", fmt.Errorf("too short")
-	}
-	plainSecret, err := aesGCM.Open(nil, cipherSecret[:nonceSize], cipherSecret[nonceSize:], nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plainSecret), nil
-}
-
 func execSecretCommand(param *sshParam, command string) string {
 	expanded, err := expandTokens(command, param, "%hnpr")
 	if err != nil {
@@ -772,13 +718,6 @@ func execSecretCommand(param *sshParam, command string) string {
 
 func getSecretConfig(param *sshParam, key string) string {
 	alias := param.args.Destination
-	if value := getExConfig(alias, "enc"+key); value != "" {
-		secret, err := decodeSecret(value)
-		if err == nil && secret != "" {
-			return secret
-		}
-		warning("decode secret [%s] failed: %v", value, err)
-	}
 	if command := getExConfig(alias, key+"Command"); command != "" {
 		if secret := execSecretCommand(param, command); secret != "" {
 			return secret

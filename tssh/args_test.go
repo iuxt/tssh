@@ -82,11 +82,7 @@ func TestSshArgs(t *testing.T) {
 	assertArgsEqual("-o RemoteCommand=none -oServerAliveInterval=5",
 		sshArgs{Option: sshOption{map[string][]string{"remotecommand": {"none"}, "serveraliveinterval": {"5"}}}})
 
-	assertArgsEqual("--reconnect", sshArgs{Reconnect: true})
-	assertArgsEqual("--dragfile", sshArgs{DragFile: true})
-	assertArgsEqual("--tracelog", sshArgs{TraceLog: true})
 	assertArgsEqual("--debug", sshArgs{Debug: true})
-	assertArgsEqual("--enc-secret", sshArgs{EncSecret: true})
 
 	assertArgsEqual("dest", sshArgs{Destination: "dest"})
 	assertArgsEqual("dest cmd", sshArgs{Destination: "dest", Command: "cmd"})
@@ -115,6 +111,12 @@ func TestSshArgs(t *testing.T) {
 	_ = assertArgsError("-L", "missing value for -L")
 	_ = assertArgsError("-R", "missing value for -R")
 	_ = assertArgsError("--zmodem", "unknown argument")
+	_ = assertArgsError("--dns 8.8.8.8", "unknown argument")
+	_ = assertArgsError("--enc-secret", "unknown argument")
+	_ = assertArgsError("--list-hosts", "unknown argument")
+	_ = assertArgsError("--reconnect", "unknown argument")
+	_ = assertArgsError("--dragfile", "unknown argument")
+	_ = assertArgsError("--tracelog", "unknown argument")
 	_ = assertArgsError("--relay", "unknown argument")
 	_ = assertArgsError("--client", "unknown argument")
 	_ = assertArgsError("--install-trzsz", "unknown argument")

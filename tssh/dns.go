@@ -25,69 +25,11 @@ SOFTWARE.
 package tssh
 
 import (
-	"context"
 	"fmt"
 	"net"
-	"net/url"
 	"strconv"
 	"strings"
 )
-
-// setDNS sets the net.DefaultResolver to use the given DNS server.
-func setDNS(dns string) {
-
-	network, dns, err := resolveDnsAddress(dns)
-	if err != nil {
-		return
-
-	}
-
-	net.DefaultResolver = &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, _, addr string) (net.Conn, error) {
-			debug("use custom DNS: %s://%s", network, dns)
-			var d net.Dialer
-			return d.DialContext(ctx, network, dns)
-		},
-	}
-
-}
-
-func resolveDnsAddress(dns string) (string, string, error) {
-
-	var preParseDns string
-	if !strings.Contains(dns, "://") {
-		preParseDns = "udp://" + dns
-	} else {
-		preParseDns = dns
-	}
-
-	svrParse, err := url.Parse(preParseDns)
-	if err != nil {
-		warning("parse dns [%s] failed: %v", dns, err)
-		return "", "", err
-
-	}
-
-	var network string
-	switch strings.ToLower(svrParse.Scheme) {
-	case "tcp":
-		network = "tcp"
-	default:
-		network = "udp"
-	}
-
-	host, port, err := net.SplitHostPort(svrParse.Host)
-	if err != nil {
-		// If no port is specified, use default port 53
-		host = svrParse.Host
-		port = "53"
-	}
-
-	dns = net.JoinHostPort(host, port)
-	return network, dns, nil
-
-}
 
 func lookupDnsSrv(name string) (string, string, error) {
 	_, addrs, err := net.LookupSRV("ssh", "tcp", name)

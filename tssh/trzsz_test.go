@@ -38,7 +38,6 @@ func TestTransferOptionsDefaultToLrzsz(t *testing.T) {
 	options := getTransferOptions(&sshArgs{})
 
 	assert.True(t, options.enableZmodem)
-	assert.False(t, options.enableDragFile)
 	assert.False(t, options.enableOSC52)
 	assert.False(t, options.disableFilter)
 }
@@ -54,12 +53,4 @@ func TestTransferOptionsCanDisableLrzsz(t *testing.T) {
 
 	assert.False(t, options.enableZmodem)
 	assert.True(t, options.disableFilter)
-}
-
-func TestDragFileUploadCommandDefaultsToRz(t *testing.T) {
-	oriUserConfig := userConfig
-	userConfig = &tsshConfig{}
-	defer func() { userConfig = oriUserConfig }()
-
-	assert.Equal(t, "rz", getDragFileUploadCommand(&sshArgs{}))
 }

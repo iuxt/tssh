@@ -76,13 +76,7 @@ type sshArgs struct {
 	X11Forward     bool        `arg:"-X,--" help:"enables X11 forwarding"`
 	NoX11Forward   bool        `arg:"-x,--" help:"disables X11 forwarding"`
 	X11Trusted     bool        `arg:"-Y,--" help:"enables trusted X11 forwarding"`
-	Reconnect      bool        `arg:"--reconnect" help:"reconnect or restart after process exits"`
-	DragFile       bool        `arg:"--dragfile" help:"enable drag files to upload"`
-	TraceLog       bool        `arg:"--tracelog" help:"enable transfer detect trace logs for debugging"`
 	Debug          bool        `arg:"--debug" help:"verbose mode for debugging, same as ssh's -vvv"`
-	Dns            string      `arg:"--dns" placeholder:"[udp://|tcp://]host[:port]" help:"custom DNS server"`
-	EncSecret      bool        `arg:"--enc-secret" help:"[tools] encode secret for configuration"`
-	ListHosts      bool        `arg:"--list-hosts" help:"[tools] list all hosts in configuration"`
 	originalDest   string
 }
 

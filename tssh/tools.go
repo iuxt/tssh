@@ -25,13 +25,10 @@ SOFTWARE.
 package tssh
 
 import (
-	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -39,10 +36,7 @@ import (
 )
 
 var (
-	redColor    = lipgloss.Color("1")
-	greenColor  = lipgloss.Color("2")
 	yellowColor = lipgloss.Color("3")
-	cyanColor   = lipgloss.Color("6")
 	blackColor  = lipgloss.Color("16")
 )
 
@@ -99,139 +93,4 @@ func newTeaOptions(fallbackFn func([]byte)) ([]tea.ProgramOption, func()) {
 		tea.WithWindowSize(width, height),
 		tea.WithColorProfile(colorprofile.ANSI256),
 	}, func() { trr.cancelled.Store(true) }
-}
-
-func toolsErrorExit(format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "\033[0;31m%s\033[0m\r\n", msg)
-	cleanupOnExit()
-	os.Exit(kExitCodeToolsError)
-}
-
-type inputValidator struct {
-	validate func(string) error
-}
-
-type passwordModel struct {
-	promptLabel   string
-	helpMessage   string
-	passwordInput string
-	validator     *inputValidator
-	cursorVisible bool
-	done          bool
-	quit          bool
-	err           error
-}
-
-type tickMsg time.Time
-
-func tickEvery(d time.Duration) tea.Cmd {
-	return tea.Tick(d, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-func (m *passwordModel) Init() tea.Cmd {
-	return tickEvery(500 * time.Millisecond)
-}
-
-func (m *passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		switch keypress := msg.String(); keypress {
-		case "ctrl+c":
-			m.quit = true
-			return m, tea.Quit
-		case "ctrl+w":
-			m.passwordInput = ""
-			return m, nil
-		case "enter":
-			err := m.validator.validate(m.passwordInput)
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.done = true
-			return m, tea.Quit
-		case "backspace":
-			if len(m.passwordInput) > 0 {
-				m.passwordInput = m.passwordInput[:len(m.passwordInput)-1]
-			}
-		default:
-			m.passwordInput += msg.Key().Text
-			m.err = nil
-		}
-	case tea.PasteMsg:
-		m.passwordInput += msg.String()
-		m.err = nil
-	case error:
-		m.err = msg
-		return m, nil
-	case tickMsg:
-		m.cursorVisible = !m.cursorVisible
-		return m, tickEvery(500 * time.Millisecond)
-	}
-	return m, nil
-}
-
-func (m *passwordModel) View() tea.View {
-	if m.done {
-		return tea.NewView(fmt.Sprintf("%s%s%s\n\n", lipgloss.NewStyle().Foreground(greenColor).Render(m.promptLabel),
-			lipgloss.NewStyle().Faint(true).Render(": "), strings.Repeat("*", len(m.passwordInput))))
-	}
-
-	var builder strings.Builder
-	builder.WriteString(lipgloss.NewStyle().Foreground(cyanColor).Render(m.promptLabel))
-	builder.WriteString(": ")
-	for i := 0; i < len(m.passwordInput); i++ {
-		builder.WriteByte('*')
-	}
-	if !m.quit && m.cursorVisible {
-		builder.WriteRune('█')
-	} else {
-		builder.WriteRune(' ')
-	}
-	builder.WriteByte('\n')
-	if m.err != nil {
-		builder.WriteString(lipgloss.NewStyle().Foreground(redColor).Render(m.err.Error()))
-	} else if m.helpMessage != "" {
-		builder.WriteString(lipgloss.NewStyle().Faint(true).Render(m.helpMessage))
-	}
-	return tea.NewView(builder.String())
-}
-
-func promptPassword(promptLabel, helpMessage string, validator *inputValidator) string {
-	teaOpts, cancelReader := newTeaOptions(nil)
-	defer cancelReader()
-
-	m, err := tea.NewProgram(&passwordModel{
-		promptLabel: promptLabel,
-		helpMessage: helpMessage,
-		validator:   validator,
-	}, teaOpts...).Run()
-
-	if model, ok := m.(*passwordModel); err == nil && ok {
-		if model.quit {
-			cleanupOnExit()
-			os.Exit(0)
-		}
-		return model.passwordInput
-	}
-	toolsErrorExit("input error: %v", err)
-	return ""
-}
-
-// execLocalTools execute local tools if necessary
-//
-// return true to quit with return code
-// return false to continue ssh login
-func execLocalTools(args *sshArgs) (int, bool) {
-	switch {
-	case args.EncSecret:
-		return execEncodeSecret()
-	case args.ListHosts:
-		return execListHosts()
-	default:
-		return 0, false
-	}
 }

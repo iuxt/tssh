@@ -184,17 +184,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   scoop install lrzsz / choco install lrzsz / winget install lrzsz
   ```
 
-- 在 `~/.ssh/config` 或 `ExConfigPath` 配置文件中，配置 `EnableDragFile` 为 `Yes` 启用拖拽上传功能。
-
-  ```
-  Host *
-    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
-    EnableDragFile Yes
-    DragFileUploadCommand rz
-  ```
-
-- 如果只是想临时启用拖拽上传功能，可以在命令行中使用 `tssh --dragfile` 登录服务器。
-
 - 在 `~/.ssh/config` 或 `ExConfigPath` 配置文件中，配置 `EnableZmodem` 为 `No` 禁用 `rz / sz` 功能。
 
   ```
@@ -273,11 +262,9 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
       ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
       ExpectTimeout 30  # 配置自动交互的超时时间（单位：秒），默认是 30 秒
       ExpectPattern1 *assword  # 配置第一个自动交互的匹配表达式
-      # 配置第一个自动输入（密文），这是由 tssh --enc-secret 编码得到的字符串，tssh 会自动发送 \r 回车
-      ExpectSendPass1 d7983b4a8ac204bd073ed04741913befd4fbf813ad405d7404cb7d779536f8b87e71106d7780b2
+      ExpectSendText1 123456\r  # 配置第一个自动输入（明文），需要指定 \r 才会发送回车
       ExpectPattern2 hostname*$  # 配置第二个自动交互的匹配表达式
       ExpectSendText2 echo tssh expect\r  # 配置第二个自动输入（明文），需要指定 \r 才会发送回车
-      # 以上 ExpectSendPass? 和 ExpectSendText? 只要二选一即可，若都配置则 ExpectSendPass? 的优先级更高
   ```
 
 - 在每个 `ExpectPattern?` 匹配之前，如果遇到可选的匹配则自动输入，用法如下：
@@ -286,34 +273,27 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   Host case
       ExpectCount 1  # 配置自动交互的次数，默认是 0 即无自动交互
       ExpectPattern1 hostname*$  # 配置第一个自动交互的匹配表达式
-      ExpectSendText1 ssh xxx\r  # 配置第一个自动输入，也可以换成 ExpectSendPass1 然后配置密文
+      ExpectSendText1 ssh xxx\r  # 配置第一个自动输入
       ExpectCaseSendText1 yes/no y\r  # 在 ExpectPattern1 匹配之前，若遇到 yes/no 则发送 y 并回车
       ExpectCaseSendText1 y/n yes\r   # 在 ExpectPattern1 匹配之前，若遇到 y/n 则发送 yes 并回车
-      ExpectCaseSendPass1 token d7... # 在 ExpectPattern1 匹配之前，若遇到 token 则解码 d7... 并发送
   ```
 
 - 在匹配到指定输出时，自动生成 `totp` 2FA 双因子验证码，然后自动输入，用法如下：
 
   ```
   Host totp
-      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectCount 1  # 配置自动交互的次数，默认是 0 即无自动交互
       ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
       ExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
-      ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
-      # 下面是运行 tssh --enc-secret 输入 totp 的 secret 得到的密文串
-      ExpectSendEncTotp2 821fe830270201c36cd1a869876a24453014ac2f1d2d3b056f3601ce9cc9a87023
   ```
 
 - 在匹配到指定输出时，执行指定的命令获取动态密码，然后自动输入，用法如下：
 
   ```
   Host otp
-      ExpectCount 2  # 配置自动交互的次数，默认是 0 即无自动交互
+      ExpectCount 1  # 配置自动交互的次数，默认是 0 即无自动交互
       ExpectPattern1 token:  # 配置第一个自动交互的匹配表达式
       ExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
-      ExpectPattern2 token:  # 配置第二个自动交互的匹配表达式
-      # 下面是运行 tssh --enc-secret 输入命令 oathtool --totp -b xxxxx 得到的密文串
-      ExpectSendEncOtp2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
   ```
 
 - 可能有些服务器不支持连着发送数据，如输入 `1\r`，要求在 `1` 之后有一点延迟，然后再 `\r` 回车，则可以用 `\|` 间开。
@@ -349,28 +329,21 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
   ```
   # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
-  Host test1
-      # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      encPassword 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
-
-  # 如果配置在 ExConfigPath 中，标准 ssh 不会读取这些 tssh 专有配置
-  Host test2
-      # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      encPassword 051a2f0fdc7d0d40794b845967df4c2d05b5eb0f25339021dc4e02a9d7620070654b
+  Host test1 test2
+      Password 123456
 
   # ~/.ssh/config 和 ~/.ssh/password 是支持通配符的，tssh 会使用第一个匹配到的值。
   # 这里希望 test2 使用区别于其他 test* 的密码，所以将 test* 放在了 test2 的后面。
 
   Host test*
-      Password 111111  # 支持明文密码，但是推荐使用 tssh --enc-secret 简单加密一下。
+      Password 111111
   ```
 
-- 如果记住密码后还是要求输入密码，可能是需要[记住答案](#%E8%AE%B0%E4%BD%8F%E7%AD%94%E6%A1%88)，可配置`encQuestionAnswer1`试试：
+- 如果记住密码后还是要求输入密码，可能是需要[记住答案](#%E8%AE%B0%E4%BD%8F%E7%AD%94%E6%A1%88)，可配置 `QuestionAnswer1` 试试：
 
   ```
   Host test1
-      # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      encQuestionAnswer1 756b17766f45bdc44c37f811db9990b0880318d5f00f6531b15e068ef1fde2666550
+      QuestionAnswer1 123456
   ```
 
 - 如果启用了 `ControlMaster` 多路复用，或者是在旧版本 `Warp` 终端，需要使用前面 `自动交互` 的方式实现记住密码的效果。配置方式请参考前面 `自动交互`，加上 `Ctrl` 前缀即可，如：
@@ -379,7 +352,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   Host ctrl
       CtrlExpectCount 1  # 配置自动交互的次数，一般只要输入一次密码
       CtrlExpectPattern1 *assword    # 配置密码提示语的匹配表达式
-      CtrlExpectSendPass1 d7983b...  # 配置 tssh --enc-secret 编码后的密码
+      CtrlExpectSendText1 123456\r  # 配置明文密码并发送回车
   ```
 
 - 支持记住私钥的`Passphrase`（ 推荐使用 `ssh-agent` ）。支持与 `IdentityFile` 一起配置, 支持使用私钥文件名代替 Host 别名设置通用密钥的 `Passphrase`。举例：
@@ -388,18 +361,16 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   # IdentityFile 和 Passphrase 一起配置
   Host test1
       IdentityFile /path/to/id_rsa
-      # 下面是运行 tssh --enc-secret 输入密码 123456 得到的密文串，每次运行结果不同。
-      encPassphrase 6f419911555b0cdc84549ae791ef69f654118d734bb4351de7e83163726ef46d176a
+      Passphrase 123456
 
   # 在 ~/.ssh/config 中配置通用私钥 ~/.ssh/id_ed25519 对应的 Passphrase
   # 可以加上通配符 * 以避免 tssh 搜索和选择时，文件名出现在服务器列表中。
   Host id_ed25519*
-      # 下面是运行 tssh --enc-secret 输入密码 111111 得到的密文串，每次运行结果不同。
-      encPassphrase 3a929328f2ab1be0ba3fccf29e8125f8e2dac6dab73c946605cf0bb8060b05f02a68
+      Passphrase 111111
 
   # 在 ~/.ssh/password 中配置则不需要通配符*，也不会出现在服务器列表中。
   Host id_rsa
-      Passphrase 111111  # 支持明文密码，但是推荐使用 tssh --enc-secret 简单加密一下。
+      Passphrase 111111
   ```
 
 - `记住密码`之后还提示输入密码？可能服务器的认证方式是 `keyboard interactive`，请参考下文`记住答案`。
@@ -464,17 +435,13 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   ```
   # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
   Host test1
-      # 下面是运行 tssh --enc-secret 输入答案 `答案一` 得到的密文串，每次运行结果不同。
-      encQuestionAnswer1 482de7690ccc5229299ccadd8de1cb7c6d842665f0dc92ff947a302f644817baecbab38601
+      QuestionAnswer1 答案一
   Host test2
-      # 下面是运行 tssh --enc-secret 输入答案 `答案一` 得到的密文串，每次运行结果不同。
-      encQuestionAnswer1 43e86f1140cf6d8c786248aad95a26f30633f1eab671676b0860ecb5b1a64fb3ec5212dddf
-      QuestionAnswer2 答案二  # 支持明文答案，但是推荐使用 tssh --enc-secret 简单加密一下。
+      QuestionAnswer1 答案一
+      QuestionAnswer2 答案二
       QuestionAnswer3 答案三
   Host test3
-      # 其中 `6e616d653a20` 是问题 `name: ` 的 hex 编码，`enc` 前缀代表配置的是密文串。
-      # 下面是运行 tssh --enc-secret 输入答案 `my_name` 得到的密文串，每次运行结果不同。
-      enc6e616d653a20 775f2523ab747384e1661aba7779011cb754b73f2e947672c7fd109607b801d70902d1
+      6e616d653a20 my_name  # 其中 `6e616d653a20` 是问题 `name: ` 的 hex 编码
       636f64653a20 my_code  # 其中 `636f64653a20` 是问题 `code: ` 的 hex 编码, `my_code` 是明文答案
   ```
 
@@ -484,9 +451,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   Host totp
       TotpSecret1 xxxxx  # 按序号配置 totp 的 secret（明文），一般可通过扫二维码获得
       totp636f64653a20 xxxxx  # 按 `code: ` 的 hex 编码 `636f64653a20` 配置 totp 的 secret（明文）
-      # 下面是运行 tssh --enc-secret 输入命令 xxxxx 得到的密文串，加上 `enc` 前缀进行配置
-      encTotpSecret2 8ba828bd54ff694bc8c4619f802b5bed73232e60a680bbac05ba5626269a81a00b
-      enctotp636f64653a20 8ba828bd54ff694bc8c4619f802b5bed73232e60a680bbac05ba5626269a81a00b
   ```
 
 - 对于可以通过命令行获取到的动态密码，则可以如下配置（同样支持按序号或 hex 编码进行配置）：
@@ -495,9 +459,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   Host otp
       OtpCommand1 oathtool --totp -b xxxxx  # 按序号配置获取动态密码的命令
       otp636f64653a20 oathtool --totp -b xxxxx  # 按 `code: ` 的 hex 编码 `636f64653a20` 配置获取动态密码的命令
-      # 下面是运行 tssh --enc-secret 输入命令 oathtool --totp -b xxxxx 得到的密文串，加上 `enc` 前缀进行配置
-      encOtpCommand2 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
-      encotp636f64653a20 77b4ce85d087b39909e563efb165659b22b9ea700a537f1258bdf56ce6fdd6ea70bc7591ea5c01918537a65433133bc0bd5ed3e4
   ```
 
 - 可以自己实现获取动态密码的程序，指定 `%q` 参数可以得到问题内容，将动态密码输出到 stdout 并正常退出即可，调试信息可以输出到 stderr （ `tssh --debug` 运行时可以看到 ）。配置举例（序号代表第几个问题，一般只有一个问题，只需配置 `OtpCommand1` 即可）：
@@ -515,13 +476,11 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
       CtrlExpectCount 1  # 配置自动交互的次数
       CtrlExpectPattern1 code:  # 配置密码提示语的匹配表达式（这里以 2FA 验证码举例）
       CtrlExpectSendTotp1 xxxxx  # 配置 totp 的 secret（明文），一般可通过扫二维码获得
-      CtrlExpectSendEncTotp1 622ada31cf...  # 或者配置 tssh --enc-secret 得到的密文串
 
   Host ctrl_otp
       CtrlExpectCount 1  # 配置自动交互的次数
       CtrlExpectPattern1 token:  # 配置密码提示语的匹配表达式（这里以动态密码举例）
       CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
-      CtrlExpectSendEncOtp1 77b4ce85d0...  # 或者配置 tssh --enc-secret 得到的密文串
   ```
 
 ### 个性配置
@@ -540,9 +499,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
   # 下载时，自动保存的路径，为空时弹出对话框手工选择，默认为空
   DefaultDownloadPath = ~/Downloads
-
-  # 全局的拖拽文件上传命令，注意 ~/.ssh/config 中配置的优先级更高
-  DragFileUploadCommand = rz
 
   # 传输进度条将从第一种颜色渐变到第二种颜色。注意不要带 `#`。
   ProgressColorPair = B14FFF 00FFA3
@@ -649,18 +605,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 ### 其他功能
 
-- 运行 `tssh --enc-secret`，输入密码或答案，可得到用于配置的密文（ 相同密码每次运行结果不同 ）。
-
-  - 上文说的`记住密码`和`记住答案`等，在配置项前面加上 `enc` 则可以配置成密文，防止被人窥屏。
-  - 如果密码中含有 `#` 等特殊字符，直接配置密码明文可能会导致登录失败，此时则必须使用密文配置。
-
-  ```
-  Host server2
-    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
-    encPassword de88c4dbdc95d85303682734e2397c4d8dd29bfff09ec53580f31dd40291fc8c7755
-    encQuestionAnswer1 93956f6e7e9f2aef3af7d6a61f7046dddf14aa4bbd9845dbb836fe3782b62ac0d89f
-  ```
-
 - 关于修改终端标题，其实无需 `tssh` 就能实现，只要在服务器的 shell 配置文件中（如`~/.bashrc`）配置：
 
   ```sh
@@ -686,14 +630,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
     DnsSrvName myhost.mydomain.com
   ```
 
-### 重连模式
-
-- 在前台模式（未用 `-f`）下，使用 `--reconnect` 会在程序退出后询问重启 tssh 进程并重新登录到远程服务器。
-
-- 在后台模式（使用 `-f`）下，使用 `--reconnect` 会在程序退出后自动重启 tssh 进程并重新登录到远程服务器。
-
-- **注意：** `--reconnect` 仅会重启 tssh 进程并重登录；**不会恢复之前的 SSH 会话**。
-
 ### 故障排除
 
 - 在旧版本 Warp 终端，分块 Blocks 的功能需要将 `tssh` 重命名为 `ssh`，推荐建个软链接（ 对更新友好 ）：
@@ -715,10 +651,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
         fi
     }
     ```
-
-  - `--dragfile` 参数可能会让 Warp 分块功能失效，请参考前文配置 `EnableDragFile` 来启用拖拽功能。
-
-- 在 Warp 终端，拖拽文件或目录进入 Warp 终端后，可能不会立即触发上传，需要多按一次`回车`键，才会上传。
 
 - 如果你在使用 Windows7 或者旧版本的 Windows10 等，遇到 `enable virtual terminal failed` 的错误。
 
