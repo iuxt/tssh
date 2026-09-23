@@ -33,7 +33,8 @@ import (
 	"strings"
 )
 
-const kTsshVersion = "0.1.25"
+// kTsshVersion is replaced with the pushed tag version by GoReleaser.
+var kTsshVersion = "0.1.25"
 
 // buildTag stores the version tag injected at build time via -ldflags.
 var buildTag = ""

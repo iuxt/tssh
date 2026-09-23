@@ -4,16 +4,16 @@ before:
     - go mod tidy
 builds:
   - id: tssh
-    main: ./cmd/tssh
+    main: .
     binary: tssh
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X trzsz-ssh/tssh.kTsshVersion={{ .Version }}
     goos:
       - linux
       - windows
       - darwin
-      - android
-      - freebsd
     goarch:
       - "386"
       - amd64
@@ -28,16 +28,6 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: arm
-      - goos: android
-        goarch: arm
-      - goos: android
-        goarch: "386"
-      - goos: android
-        goarch: amd64
-      - goos: freebsd
-        goarch: arm
-      - goos: freebsd
-        goarch: "386"
 archives:
   - id: tssh
     name_template: >-

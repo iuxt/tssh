@@ -66,5 +66,5 @@ jobs:
           which go
           go version
           make test
-          GOOS=windows GOARCH=386 go build -o tssh_win7_i386/ ./cmd/tssh/
-          GOOS=windows GOARCH=amd64 go build -o tssh_win7_x86_64/ ./cmd/tssh/
+          GOOS=windows GOARCH=386 go build -o tssh_win7_i386.exe .
+          GOOS=windows GOARCH=amd64 go build -o tssh_win7_x86_64.exe .
