@@ -482,10 +482,4 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
   - 请将 tssh 专有配置移动到 `~/.tssh/config` 或 `~/.tssh/password` 中。配置项直接使用 `Key Value` 格式书写。
 
-### 联系方式
 
-有什么问题可以发邮件给作者 <lonnywong@qq.com>，也可以提 [Issues](https://github.com/trzsz/trzsz-ssh/issues) 。欢迎加入 QQ 群：318578930。
-
-### 赞助打赏
-
-[❤️ 赞助 trzsz ❤️](https://github.com/trzsz)，请作者喝杯咖啡 ☕ ? 谢谢您们的支持！
