@@ -29,6 +29,7 @@ package tssh
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sync/atomic"
 	"syscall"
@@ -41,6 +42,11 @@ import (
 const kDefaultSshSkHelperPath = "/usr/lib/openssh/ssh-sk-helper"
 
 var isRunningOnOldWindows atomic.Bool
+
+func commandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
 
 type stdinState struct {
 	state *term.State

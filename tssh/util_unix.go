@@ -73,10 +73,6 @@ func isRemoteSshEnv(pid int) bool {
 	return false
 }
 
-func getIterm2Manager() terminalManager {
-	return nil
-}
-
 func getIterm2Session() *iterm2.Session {
 	return nil
 }

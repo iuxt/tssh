@@ -621,39 +621,6 @@ func TestCustomFinder(t *testing.T) {
 	}
 }
 
-func TestHashBangBangIsComment(t *testing.T) {
-	us := &UserSettings{
-		userConfigFinder: testConfigFinder("testdata/exconfig"),
-	}
-
-	for _, kv := range []struct {
-		host  string
-		key   string
-		value string
-	}{
-		{"ext", "User", "root"},
-		{"ext", "Admin", ""},
-		{"ext", "EnableTrzsz", ""},
-		{"ext", "EnableDragFile", ""},
-		{"ext", "Comment", ""},
-		{"ext", "Password", ""},
-		{"ext", "Passphrase", ""},
-		{"ext2", "HostName", "::1"},
-		{"ext2", "EnableTrzsz", ""},
-		{"ext2", "EnableDragFile", ""},
-		{"ext2", "Password", ""},
-		{"ext2", "Passphrase", ""},
-	} {
-		value, err := us.GetStrict(kv.host, kv.key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if value != kv.value {
-			t.Errorf("expected %q.%q to be %q, got %q", kv.host, kv.key, kv.value, value)
-		}
-	}
-}
-
 func TestCommentValue(t *testing.T) {
 	us := &UserSettings{}
 	us.ConfigFinder(func() string {

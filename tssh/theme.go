@@ -96,13 +96,12 @@ func getTinyTheme() *promptTheme {
 	return &promptTheme{
 		Label: fmt.Sprintf(`{{ "? " | %s }}{{ . | %s }}{{ ":" | %s }}`,
 			getThemeColor("label_icon"), getThemeColor("label_text"), getThemeColor("label_text")),
-		Active: fmt.Sprintf(`{{ "%s" | %s }} {{ if .Selected }}{{ "✔ " | %s }}{{ else }}{{ "  " }}{{ end }}`+
+		Active: fmt.Sprintf(`{{ "%s" | %s }} `+
 			`{{ .Alias | %s }} ({{ .Host | %s }}){{ "\t" }}{{ .GroupLabels | %s }}`,
-			promptCursorIcon, getThemeColor("cursor_icon"), getThemeColor("active_selected"),
+			promptCursorIcon, getThemeColor("cursor_icon"),
 			getThemeColor("active_alias"), getThemeColor("active_host"), getThemeColor("active_group")),
-		Inactive: fmt.Sprintf(`   {{ if .Selected }}{{ "✔ " | %s }}{{ else }}{{ "  " }}{{ end }}`+
+		Inactive: fmt.Sprintf(`   `+
 			`{{ .Alias | %s }} ({{ .Host | %s }}){{ "\t" }}{{ .GroupLabels | %s }}`,
-			getThemeColor("inactive_selected"),
 			getThemeColor("inactive_alias"), getThemeColor("inactive_host"), getThemeColor("inactive_group")),
 		Details:   getDefaultDetailsTemplate(),
 		Help:      getDefaultHelpTipsTemplate(),
@@ -114,13 +113,13 @@ func getSimpleTheme() *promptTheme {
 	return &promptTheme{
 		Label: fmt.Sprintf(`{{ "? " | %s }}{{ . | %s }}{{ ":\n" | %s }}`,
 			getThemeColor("label_icon"), getThemeColor("label_text"), getThemeColor("label_text")),
-		Active: fmt.Sprintf(`{{ "%s" | %s }} {{ if .Selected }}{{ "✔ " | %s }}{{ else }}{{ "  " }}{{ end }}`+
+		Active: fmt.Sprintf(`{{ "%s" | %s }} `+
 			`{{ .Alias | %s }}{{ "\t" }}{{ .Host | %s }}{{ "\t" }}{{ .GroupLabels | %s }}`+
-			`{{ "\n\t\t" }}`, promptCursorIcon, getThemeColor("cursor_icon"), getThemeColor("active_selected"),
+			`{{ "\n\t\t" }}`, promptCursorIcon, getThemeColor("cursor_icon"),
 			getThemeColor("active_alias"), getThemeColor("active_host"), getThemeColor("active_group")),
-		Inactive: fmt.Sprintf(`   {{ if .Selected }}{{ "✔ " | %s }}{{ else }}{{ "  " }}{{ end }}`+
+		Inactive: fmt.Sprintf(`   `+
 			`{{ .Alias | %s }}{{ "\t" }}{{ .Host | %s }}{{ "\t" }}{{ .GroupLabels | %s }}`+
-			`{{ "\n\t\t" }}`, getThemeColor("inactive_selected"),
+			`{{ "\n\t\t" }}`,
 			getThemeColor("inactive_alias"), getThemeColor("inactive_host"), getThemeColor("inactive_group")),
 		Details:   getDefaultDetailsTemplate(),
 		Help:      getDefaultHelpTipsTemplate(),
@@ -133,10 +132,6 @@ type tableTheme struct {
 	defaultAliasStyle   lipgloss.Style
 	defaultHostStyle    lipgloss.Style
 	defaultGroupStyle   lipgloss.Style
-	selectedIconStyle   lipgloss.Style
-	selectedAliasStyle  lipgloss.Style
-	selectedHostStyle   lipgloss.Style
-	selectedGrouplStyle lipgloss.Style
 	defaultBorderStyle  lipgloss.Style
 	selectedBorderStyle lipgloss.Style
 	detailsNameStyle    lipgloss.Style
@@ -145,31 +140,17 @@ type tableTheme struct {
 	tableWidth          int
 }
 
-func (t *tableTheme) cellStyle(host *sshHost, row, col int) lipgloss.Style {
+func (t *tableTheme) cellStyle(row, col int) lipgloss.Style {
 	if row == 0 {
 		return t.tableHeaderStyle
 	}
-	if col == 0 {
-		return t.selectedIconStyle
-	}
-	if host.Selected {
-		switch col {
-		case 1:
-			return t.selectedAliasStyle
-		case 2:
-			return t.selectedHostStyle
-		case 3:
-			return t.selectedGrouplStyle
-		}
-	} else {
-		switch col {
-		case 1:
-			return t.defaultAliasStyle
-		case 2:
-			return t.defaultHostStyle
-		case 3:
-			return t.defaultGroupStyle
-		}
+	switch col {
+	case 0:
+		return t.defaultAliasStyle
+	case 1:
+		return t.defaultHostStyle
+	case 2:
+		return t.defaultGroupStyle
 	}
 	return lipgloss.NewStyle()
 }
@@ -198,20 +179,12 @@ func (t *tableTheme) renderItems(items []any, idx int) string {
 	var data [][]string
 	for _, item := range items {
 		host := item.(*sshHost)
-		icon := " "
-		if host.Selected {
-			icon = "✔"
-		}
-		data = append(data, []string{icon, host.Alias, host.Host, host.GroupLabels})
+		data = append(data, []string{host.Alias, host.Host, host.GroupLabels})
 	}
 	tbl := table.New().BorderRow(true).
-		Headers("", "Alias", "Host Name", "Group Labels").Rows(data...).
+		Headers("Alias", "Host Name", "Group Labels").Rows(data...).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			var host *sshHost
-			if row > 0 {
-				host = items[row-1].(*sshHost)
-			}
-			return t.cellStyle(host, row, col)
+			return t.cellStyle(row, col)
 		}).
 		BorderStyleFunc(func(row, col int, borderType table.BorderType) lipgloss.Style {
 			return t.borderStyle(idx, row, col, borderType)
@@ -277,10 +250,6 @@ func getTableTheme() *promptTheme {
 		defaultAliasStyle:   cellStyle.Foreground(lipgloss.Color(getThemeColor("default_alias"))),
 		defaultHostStyle:    cellStyle.Foreground(lipgloss.Color(getThemeColor("default_host"))),
 		defaultGroupStyle:   cellStyle.Foreground(lipgloss.Color(getThemeColor("default_group"))),
-		selectedIconStyle:   cellStyle.Foreground(lipgloss.Color(getThemeColor("selected_icon"))).Bold(true),
-		selectedAliasStyle:  cellStyle.Foreground(lipgloss.Color(getThemeColor("selected_alias"))).Bold(true),
-		selectedHostStyle:   cellStyle.Foreground(lipgloss.Color(getThemeColor("selected_host"))).Bold(true),
-		selectedGrouplStyle: cellStyle.Foreground(lipgloss.Color(getThemeColor("selected_group"))).Bold(true),
 		defaultBorderStyle:  baseStyle.Foreground(lipgloss.Color(getThemeColor("default_border"))).Faint(true),
 		selectedBorderStyle: baseStyle.Foreground(lipgloss.Color(getThemeColor("selected_border"))).Bold(true),
 		detailsNameStyle:    cellStyle.Foreground(lipgloss.Color(getThemeColor("details_name"))),

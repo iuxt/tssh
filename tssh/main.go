@@ -38,6 +38,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+func setTerminalTitle(title string) {
+	fmt.Fprintf(os.Stderr, "\033]0;%s\007", title)
+}
+
 func background(args *sshArgs, dest string) (bool, error) {
 	if v := os.Getenv("TRZSZ-SSH-BACKGROUND"); v == "TRUE" {
 		return false, nil

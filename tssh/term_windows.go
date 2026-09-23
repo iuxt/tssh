@@ -43,6 +43,11 @@ const kDefaultSshSkHelperPath = `C:\Windows\System32\OpenSSH\ssh-sk-helper.exe`
 
 var isRunningOnOldWindows atomic.Bool
 
+func commandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
 type stdinState struct {
 	state    *term.State
 	settings *string

@@ -41,34 +41,25 @@ var promptCursorIcon = "🧨"
 var promptSelectedIcon = "🍺"
 
 const (
-	keyCtrlA     = '\x01'
-	keyCtrlB     = '\x02'
-	keyCtrlC     = '\x03'
-	keyCtrlD     = '\x04'
-	keyCtrlE     = '\x05'
-	keyCtrlF     = '\x06'
-	keyCtrlH     = '\x08'
-	keyCtrlJ     = '\x0a'
-	keyCtrlK     = '\x0b'
-	keyCtrlL     = '\x0c'
-	keyCtrlO     = '\x0f'
-	keyCtrlP     = '\x10'
-	keyCtrlQ     = '\x11'
-	keyCtrlT     = '\x14'
-	keyCtrlU     = '\x15'
-	keyCtrlW     = '\x17'
-	keyCtrlX     = '\x18'
-	keyCtrlSpace = '\x00'
-	keyEnter     = '\x0d'
-	keyESC       = '\x1b'
+	keyCtrlB = '\x02'
+	keyCtrlC = '\x03'
+	keyCtrlD = '\x04'
+	keyCtrlE = '\x05'
+	keyCtrlF = '\x06'
+	keyCtrlH = '\x08'
+	keyCtrlJ = '\x0a'
+	keyCtrlK = '\x0b'
+	keyCtrlL = '\x0c'
+	keyCtrlQ = '\x11'
+	keyCtrlU = '\x15'
+	keyEnter = '\x0d'
+	keyESC   = '\x1b'
 )
 
 type sshPrompt struct {
 	selector      *promptui.Select
 	pipeOut       io.WriteCloser
 	hosts         []*sshHost
-	termMgr       terminalManager
-	openType      int
 	showShortcuts bool
 	search        bool
 	quit          bool
@@ -110,15 +101,6 @@ var normalShortcuts = []sshShortcuts{
 	{actionName: "Tgl  Help", globalKeys: []string{"?"}},
 }
 
-var selectShortcuts = []sshShortcuts{
-	{actionName: "TglSelect", globalKeys: []string{"Ctrl+X", "Ctrl+Space", "Alt+Space"}, nonSearchKeys: []string{"Space", "x", "X"}},
-	{actionName: "SelectAll", globalKeys: []string{"Ctrl+A"}, nonSearchKeys: []string{"a", "A"}},
-	{actionName: "SelectOpp", globalKeys: []string{"Ctrl+O"}, nonSearchKeys: []string{"o", "O"}},
-	{actionName: "Open Wins", globalKeys: []string{"Ctrl+W"}, nonSearchKeys: []string{"w", "W"}},
-	{actionName: "Open Tabs", globalKeys: []string{"Ctrl+T"}, nonSearchKeys: []string{"t", "T"}},
-	{actionName: "Open Pane", globalKeys: []string{"Ctrl+P"}, nonSearchKeys: []string{"p", "P"}},
-}
-
 func (p *sshPrompt) getShortcuts() []string {
 	if !p.showShortcuts {
 		p.selector.HideHelp = false
@@ -138,36 +120,11 @@ func (p *sshPrompt) getShortcuts() []string {
 		}
 	}
 	addShortcuts(normalShortcuts)
-	if p.termMgr != nil {
-		addShortcuts(selectShortcuts)
-	}
 	return shortcuts
 }
 
 func (p *sshPrompt) getPageCount() int {
 	return (len(p.hosts)-1)/getPromptPageSize() + 1
-}
-
-func (p *sshPrompt) hasSelected() bool {
-	for _, h := range p.hosts {
-		if h.Selected {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *sshPrompt) getSelected(idx int) []*sshHost {
-	var hosts []*sshHost
-	for _, h := range p.hosts {
-		if h.Selected {
-			hosts = append(hosts, h)
-		}
-	}
-	if len(hosts) == 0 && idx >= 0 && idx < len(p.hosts) {
-		hosts = append(hosts, p.hosts[idx])
-	}
-	return hosts
 }
 
 func (p *sshPrompt) userQuit(buf []byte) bool {
@@ -324,63 +281,6 @@ func (p *sshPrompt) gotoEnd(buf []byte) bool {
 	}
 }
 
-func (p *sshPrompt) toggleSelect(buf []byte) bool {
-	if p.termMgr == nil {
-		return false
-	}
-	if len(buf) == 2 && buf[0] == '\xc2' {
-		switch buf[1] {
-		case '\xa0': // Alt+Space
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlSpace, keyCtrlX:
-		return true
-	case ' ', 'x', 'X':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) selectAllItems(buf []byte) bool {
-	if p.termMgr == nil {
-		return false
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlA:
-		return true
-	case 'a', 'A':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) selectOpposite(buf []byte) bool {
-	if p.termMgr == nil {
-		return false
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlO:
-		return true
-	case 'o', 'O':
-		return !p.search
-	default:
-		return false
-	}
-}
-
 func (p *sshPrompt) toggleSearch(buf []byte) bool {
 	if len(buf) != 1 {
 		return false
@@ -434,38 +334,7 @@ func (p *sshPrompt) eraseKeywords(buf []byte) bool {
 }
 
 func (p *sshPrompt) userConfirm(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
-	}
-	if buf[0] == keyEnter {
-		p.openType = openTermDefault
-		return !p.search
-	}
-	if p.termMgr == nil || !p.hasSelected() {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlP:
-		p.openType = openTermPane
-		return true
-	case 'p', 'P':
-		p.openType = openTermPane
-		return !p.search
-	case keyCtrlT:
-		p.openType = openTermTab
-		return true
-	case 't', 'T':
-		p.openType = openTermTab
-		return !p.search
-	case keyCtrlW:
-		p.openType = openTermWindow
-		return true
-	case 'w', 'W':
-		p.openType = openTermWindow
-		return !p.search
-	default:
-		return false
-	}
+	return len(buf) == 1 && buf[0] == keyEnter && !p.search
 }
 
 func (p *sshPrompt) wrapStdin() {
@@ -497,25 +366,6 @@ func (p *sshPrompt) wrapStdin() {
 			buf = bytes.Repeat([]byte{readline.CharBackward}, p.getPageCount())
 		case p.gotoEnd(buf):
 			buf = bytes.Repeat([]byte{readline.CharForward}, p.getPageCount())
-		case p.toggleSelect(buf):
-			buf = []byte{promptui.KeyRefresh}
-			if idx := p.selector.GetCurrentIndex(); idx >= 0 {
-				p.hosts[idx].Selected = !p.hosts[idx].Selected
-			}
-		case p.selectAllItems(buf):
-			buf = []byte{promptui.KeyRefresh}
-			for _, h := range p.selector.GetVisibleItems() {
-				if host, ok := h.(*sshHost); ok {
-					host.Selected = true
-				}
-			}
-		case p.selectOpposite(buf):
-			buf = []byte{promptui.KeyRefresh}
-			for _, h := range p.selector.GetVisibleItems() {
-				if host, ok := h.(*sshHost); ok {
-					host.Selected = !host.Selected
-				}
-			}
 		case p.toggleSearch(buf):
 			p.search = !p.search
 			buf = []byte{'/'}
@@ -566,7 +416,6 @@ func chooseAlias(keywords string) (string, bool, error) {
 	}
 
 	theme := getPromptTheme()
-	termMgr := getTerminalManager()
 	funcMap := promptui.FuncMap
 	funcMap["getExConfig"] = getExConfig
 	funcMap["hasField"] = func(obj any, field string) bool {
@@ -603,7 +452,6 @@ func chooseAlias(keywords string) (string, bool, error) {
 		},
 		pipeOut: pipeOut,
 		hosts:   hosts,
-		termMgr: termMgr,
 	}
 
 	if enableDebugLogging && tmuxDebugPaneWriter == nil {
@@ -621,14 +469,9 @@ func chooseAlias(keywords string) (string, bool, error) {
 		return "", true, nil
 	}
 
-	selectedHosts := prompt.getSelected(idx)
-	for _, h := range selectedHosts {
-		fmt.Fprintf(os.Stderr, "\033[0;32m%s %s\033[0m\r\n", promptSelectedIcon, h.Alias)
-	}
-	if len(selectedHosts) > 1 && termMgr != nil {
-		termMgr.openTerminals(keywords, prompt.openType, selectedHosts)
-	}
-	return selectedHosts[0].Alias, false, nil
+	selectedHost := hosts[idx]
+	fmt.Fprintf(os.Stderr, "\033[0;32m%s %s\033[0m\r\n", promptSelectedIcon, selectedHost.Alias)
+	return selectedHost.Alias, false, nil
 }
 
 func predictDestination(dest string) (string, bool, error) {

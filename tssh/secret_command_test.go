@@ -84,10 +84,11 @@ Host enchost
     HostName 10.0.0.2
     User testuser
 
-Host plainhost
-    HostName 10.0.0.3
-    User testuser
-    Password plain-text-pass
+Host synology
+    HostName 192.168.1.11
+    User iuxt
+    Port 22
+    Password 123456
 
 Host tokenhost
     HostName 10.0.0.4
@@ -108,8 +109,8 @@ Host tokenhost
 	// host without any password config should return empty
 	assert.Equal("", getSecretConfig(param("enchost"), "Password"))
 
-	// plain Password should still work as fallback
-	assert.Equal("plain-text-pass", getSecretConfig(param("plainhost"), "Password"))
+	// Password is configured directly with the standard "Key Value" syntax.
+	assert.Equal("123456", getSecretConfig(param("synology"), "Password"))
 
 	// %n token in PasswordCommand should be expanded to the alias
 	assert.Equal("password-for-tokenhost", getSecretConfig(param("tokenhost"), "Password"))

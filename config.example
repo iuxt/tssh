@@ -11,8 +11,7 @@
 #   - Put normal OpenSSH-compatible options in ~/.ssh/config or ~/.tssh/config.
 #   - Put tssh-specific options and secrets in ExConfigPath, so OpenSSH will not
 #     read options it does not understand.
-#   - Lines starting with `#`, including `#!!`, are comments for both OpenSSH and
-#     tssh. Do not use `#!!` as a tssh configuration prefix.
+#   - Write configuration directives directly as `Key Value`.
 #
 # Global tssh UI settings are NOT read from this SSH-style file. Put them in
 # `$XDG_CONFIG_HOME/tssh/tssh.conf` or `~/.tssh.conf`, for example:

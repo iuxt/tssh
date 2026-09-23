@@ -60,7 +60,6 @@ type sshHost struct {
 	ProxyJump     string
 	RemoteCommand string
 	GroupLabels   string
-	Selected      bool `json:"-"`
 }
 
 type tsshConfig struct {
@@ -747,13 +746,12 @@ func getThemeColor(key string) string {
 		switch strings.ToLower(userConfig.promptThemeLayout) {
 		case "tiny", "simple":
 			colors = `{"help_tips": "faint", "shortcuts": "faint", "label_icon": "blue", "label_text": "default", "cursor_icon": "green|bold",` +
-				`"active_selected": "green|bold", "active_alias": "cyan|bold", "active_host": "magenta|bold", "active_group": "blue|bold",` +
-				`"inactive_selected": "green|bold", "inactive_alias": "cyan", "inactive_host": "magenta", "inactive_group": "blue",` +
+				`"active_alias": "cyan|bold", "active_host": "magenta|bold", "active_group": "blue|bold",` +
+				`"inactive_alias": "cyan", "inactive_host": "magenta", "inactive_group": "blue",` +
 				`"details_title": "default", "details_name": "faint", "details_value": "default"}`
 		case "table":
 			colors = `{"help_tips": "faint", "shortcuts": "faint", "table_header": "10",` +
 				`"default_alias": "6", "default_host": "5", "default_group": "4",` +
-				`"selected_icon": "2", "selected_alias": "14", "selected_host": "13", "selected_group": "12",` +
 				`"default_border": "8", "selected_border": "10",` +
 				`"details_name": "4", "details_value": "3", "details_border": "8"}`
 		}

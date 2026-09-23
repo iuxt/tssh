@@ -25,59 +25,30 @@ SOFTWARE.
 package tssh
 
 import (
-	"fmt"
-	"math"
-	"os"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/trzsz/promptui"
 )
 
-const (
-	openTermDefault = 0
-	openTermPane    = 1
-	openTermTab     = 2
-	openTermWindow  = 3
-)
+func TestPromptOnlyConfirmsWithEnter(t *testing.T) {
+	prompt := &sshPrompt{}
+	assert.True(t, prompt.userConfirm([]byte{keyEnter}))
 
-type terminalManager interface {
-	openTerminals(keywords string, openType int, hosts []*sshHost)
+	for _, key := range []byte{'p', 'P', 't', 'T', 'w', 'W', '\x10', '\x14', '\x17'} {
+		assert.False(t, prompt.userConfirm([]byte{key}), "key %q should not start a login", key)
+	}
+
+	prompt.search = true
+	assert.False(t, prompt.userConfirm([]byte{keyEnter}))
 }
 
-func getTerminalManager() terminalManager {
-	if mgr := getTmuxManager(); mgr != nil {
-		return mgr
-	}
-	if mgr := getIterm2Manager(); mgr != nil {
-		return mgr
-	}
-	if mgr := getWindowsTerminalManager(); mgr != nil {
-		return mgr
-	}
-	debug("doesn't support multiple selections")
-	return nil
-}
+func TestPromptShortcutsDoNotIncludeMultipleSelection(t *testing.T) {
+	prompt := &sshPrompt{selector: &promptui.Select{}, showShortcuts: true}
+	shortcuts := strings.Join(prompt.getShortcuts(), "\n")
 
-type paneHost struct {
-	alias  string
-	paneId string
-}
-
-func getPanesMatrix(hosts []*sshHost) [][]*paneHost {
-	rows := int(math.Floor(math.Sqrt(float64(len(hosts)))))
-	cols := make([]int, rows)
-	for i := range hosts {
-		cols[i%rows]++
+	for _, action := range []string{"TglSelect", "SelectAll", "SelectOpp", "Open Wins", "Open Tabs", "Open Pane"} {
+		assert.NotContains(t, shortcuts, action)
 	}
-	matrix := make([][]*paneHost, rows)
-	idx := 0
-	for i := range rows {
-		matrix[i] = make([]*paneHost, cols[i])
-		for j := 0; j < cols[i]; j++ {
-			matrix[i][j] = &paneHost{hosts[idx].Alias, ""}
-			idx++
-		}
-	}
-	return matrix
-}
-
-func setTerminalTitle(title string) {
-	fmt.Fprintf(os.Stderr, "\033]0;%s\007", title)
 }

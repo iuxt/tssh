@@ -13,8 +13,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - `tssh` 登录服务器后，内置支持 lrzsz zmodem ( rz / sz )，传文件无需另外新开窗口。
 
-- 有时需要同时登录一批机器，`tssh` 支持多选并批量登录，同时支持执行预设的命令。
-
 - 有些服务器不支持公钥登录，`tssh` 支持记住密码，支持自动交互，提升登录的效率。
 
 ### 安装方法
@@ -44,7 +42,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 如果配置了 `HideHost yes`，或者别名中含有 `*` 或 `?` 通配符时，则不会显示在登录界面中。
 
-- `tssh` 支持很多快捷键，支持搜索，在 `tmux`、`iTerm2` 和 `Windows Terminal` 等中使用时支持多选。
+- `tssh` 支持很多快捷键和搜索功能。
 
   | 操作      | 全局快捷键                      | 非搜索快捷键 | 快捷键描述      |
   | --------- | ------------------------------- | ------------ | --------------- |
@@ -59,12 +57,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   | EraseKeys | Ctrl+E                          | e E          | 擦除搜索关键字  |
   | TglSearch | /                               |              | 切换搜索功能    |
   | Tgl Help  | ?                               |              | 切换帮助信息    |
-  | TglSelect | Ctrl+X Ctrl+Space Alt+Space     | Space x X    | 切换选中状态    |
-  | SelectAll | Ctrl+A                          | a A          | 全选当前页      |
-  | SelectOpp | Ctrl+O                          | o O          | 反选当前页      |
-  | Open Wins | Ctrl+W                          | w W          | 新窗口批量登录  |
-  | Open Tabs | Ctrl+T                          | t T          | 新 Tab 批量登录 |
-  | Open Pane | Ctrl+P                          | p P          | 分屏批量登录    |
 
 ### 主题风格
 
@@ -90,11 +82,9 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
     "label_icon": "blue",
     "label_text": "default",
     "cursor_icon": "green|bold",
-    "active_selected": "green|bold",
     "active_alias": "cyan|bold",
     "active_host": "magenta|bold",
     "active_group": "blue|bold",
-    "inactive_selected": "green|bold",
     "inactive_alias": "cyan",
     "inactive_host": "magenta",
     "inactive_group": "blue",
@@ -158,10 +148,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
     "default_alias": "6",
     "default_host": "5",
     "default_group": "4",
-    "selected_icon": "2",
-    "selected_alias": "14",
-    "selected_host": "13",
-    "selected_group": "12",
     "default_border": "8",
     "selected_border": "10",
     "details_name": "4",
@@ -212,25 +198,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   alias tscp='scp -S tssh'
   alias tsftp='sftp -S tssh'
   ```
-
-### 批量登录
-
-- 支持在 `iTerm2`（ 要开启 [Python API](https://iterm2.com/python-api-auth.html)，但不需要`Allow all apps to connect` ），`tmux` 和 `Windows Terminal` 中一次选择多台服务器，批量登录，并支持批量执行预先指定的命令。
-
-- 按下 `Space`、`Ctrl+X` 等可以选中或取消当前服务器，若不能选中说明还不支持当前终端，请先运行 `tmux`。
-
-- 按下 `a` 或 `Ctrl+A` 全选当前页所有机器，`o` 或 `Ctrl+O` 反选当前页所有机器，`d` 或 `l` 翻到下一页。
-
-- 按下 `p` 或 `Ctrl+P` 以分屏的方式登录，`w` 或 `Ctrl+W` 以新窗口登录，`t` 或 `Ctrl+T` 以新 tab 登录。
-
-- `tssh` 不带参数启动可以批量登录服务器，若带 `-o RemoteCommand` 参数启动则可以批量执行指定的命令。支持执行指定命令之后进入交互式 shell，但 `Windows Terminal` 不支持分号 `;`，可以用 `|cat&&` 代替。举例：
-
-  ```sh
-  tssh -t -o RemoteCommand='ping -c3 trzsz.github.io ; bash -l'
-  tssh -t -o RemoteCommand="ping -c3 trzsz.github.io |cat&& bash -l"
-  ```
-
-![tssh batch](https://trzsz.github.io/images/tssh_batch.gif)
 
 ### 分组标签
 
@@ -534,11 +501,10 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   | 注释                  | openssh |  tssh  |
   | :-------------------- | :-----: | :----: |
   | `#` 开头的配置行      | 是注释  | 是注释 |
-  | `#!!` 开头的配置行    | 是注释  | 是注释 |
   | `Key Value # Comment` | 看情况  | 是注释 |
   | `Key=Value # Comment` | 看情况  | 非注释 |
 
-- `#` 开头的配置行，包括 `#!!` 开头的配置行，`openssh` 和 `tssh` 都会认为是注释。
+- `#` 开头的配置行，`openssh` 和 `tssh` 都会认为是注释。
 - `Key Value # Comment` 配置（没有 `=` 号），`openssh` 有些情况认为 `#` 后的内容是注释，有些情况认为不是注释；`tssh` 一律认为 `#` 后的内容是注释。
 - `Key=Value # Comment` 配置（有 `=` 号），`openssh` 有些情况认为 `#` 后的内容是注释，有些情况认为不是注释；`tssh` 一律认为 `#` 后的内容不是注释。
 
@@ -660,7 +626,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 如果在 `~/.ssh/config` 中配置了 `tssh` 特有的配置项后，标准 `ssh` 报错 `Bad configuration option`。
 
-  - 请将 tssh 专有配置移动到 `ExConfigPath`，或者移动到仅供 `tssh` 使用的配置文件中；`#!!` 开头的配置行对 OpenSSH 和 tssh 都是注释。
+  - 请将 tssh 专有配置移动到 `ExConfigPath`，或者移动到仅供 `tssh` 使用的配置文件中。配置项直接使用 `Key Value` 格式书写。
 
 ### 联系方式
 
