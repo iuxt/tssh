@@ -151,12 +151,6 @@ func getSshParam(args *sshArgs, proxy bool) (*sshParam, error) {
 
 	args.Destination = destHost
 
-	// Preload effective OpenSSH configuration using `ssh -G`, allowing getConfig()
-	// to evaluate Match blocks and other complex OpenSSH rules.
-	if userConfig.useOpenSSHConfig {
-		_ = getOpenSSHEffectiveConfig(args.Destination, args, destUser, destPort)
-	}
-
 	// login host
 	param.host = destHost
 	if hostName := getConfig(destHost, "HostName"); hostName != "" {

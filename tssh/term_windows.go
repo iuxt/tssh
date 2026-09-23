@@ -171,12 +171,8 @@ func setupVirtualTerminal() error {
 
 		isRunningOnOldWindows.Store(true)
 
-		if userConfig.promptCursorIcon == "" {
-			promptCursorIcon = ">>"
-		}
-		if userConfig.promptSelectedIcon == "" {
-			promptSelectedIcon = "++"
-		}
+		promptCursorIcon = ">>"
+		promptSelectedIcon = "++"
 	}
 
 	// set code page to UTF8

@@ -100,13 +100,8 @@ func setupTransferFilter(sshConn *sshConnection) error {
 
 	// custom configuration
 	defaultUploadPath := getExOptionConfig(args, "DefaultUploadPath")
-	if defaultUploadPath == "" {
-		defaultUploadPath = userConfig.defaultUploadPath
-	}
 	defaultDownloadPath := getExOptionConfig(args, "DefaultDownloadPath")
-	if defaultDownloadPath == "" {
-		defaultDownloadPath = userConfig.defaultDownloadPath
-	}
+	progressColorPair := getExOptionConfig(args, "ProgressColorPair")
 	// create a transfer filter for zmodem and OSC52
 	//
 	//   os.Stdin  ┌────────┐   os.Stdin   ┌─────────────┐   ServerIn   ┌────────┐
@@ -136,7 +131,7 @@ func setupTransferFilter(sshConn *sshConnection) error {
 	// setup transfer config
 	trzszFilter.SetDefaultUploadPath(defaultUploadPath)
 	trzszFilter.SetDefaultDownloadPath(defaultDownloadPath)
-	trzszFilter.SetProgressColorPair(userConfig.progressColorPair)
+	trzszFilter.SetProgressColorPair(progressColorPair)
 
 	// setup redraw screen
 	trzszFilter.SetRedrawScreenFunc(sshConn.session.RedrawScreen)

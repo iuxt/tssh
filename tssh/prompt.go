@@ -124,7 +124,7 @@ func (p *sshPrompt) getShortcuts() []string {
 }
 
 func (p *sshPrompt) getPageCount() int {
-	return (len(p.hosts)-1)/getPromptPageSize() + 1
+	return (len(p.hosts)-1)/10 + 1
 }
 
 func (p *sshPrompt) userQuit(buf []byte) bool {
@@ -343,10 +343,6 @@ func (p *sshPrompt) wrapStdin() {
 		_ = p.selector.Stdin.Close()
 	}()
 	buffer := make([]byte, 100)
-	if strings.ToLower(userConfig.promptDefaultMode) == "search" {
-		p.search = true
-		_, _ = p.pipeOut.Write([]byte{'/'})
-	}
 	for {
 		n, err := os.Stdin.Read(buffer)
 		buf := buffer[:n]
@@ -415,7 +411,7 @@ func chooseAlias(keywords string) (string, bool, error) {
 		return matchHost(hosts[index], strings.Fields(strings.ToLower(input)))
 	}
 
-	theme := getPromptTheme()
+	style := getPromptStyle()
 	funcMap := promptui.FuncMap
 	funcMap["getExConfig"] = getExConfig
 	funcMap["hasField"] = func(obj any, field string) bool {
@@ -432,18 +428,15 @@ func chooseAlias(keywords string) (string, bool, error) {
 			Label: "SSH Alias",
 			Items: hosts,
 			Templates: &promptui.SelectTemplates{
-				Help:            theme.Help,
-				Label:           theme.Label,
-				Active:          theme.Active,
-				Inactive:        theme.Inactive,
-				Details:         theme.Details,
-				Shortcuts:       theme.Shortcuts,
-				HideLabel:       theme.HideLabel,
-				ItemsRenderer:   theme.ItemsRenderer,
-				DetailsRenderer: theme.DetailsRenderer,
-				FuncMap:         funcMap,
+				Help:      style.Help,
+				Label:     style.Label,
+				Active:    style.Active,
+				Inactive:  style.Inactive,
+				Details:   style.Details,
+				Shortcuts: style.Shortcuts,
+				FuncMap:   funcMap,
 			},
-			Size:         getPromptPageSize(),
+			Size:         10,
 			Searcher:     searcher,
 			Stdin:        pipeIn,
 			Stdout:       &bellFilter{os.Stderr},
@@ -476,10 +469,6 @@ func chooseAlias(keywords string) (string, bool, error) {
 
 func predictDestination(dest string) (string, bool, error) {
 	if !isTerminal || strings.ContainsAny(dest, ".:[]@") {
-		return dest, false, nil
-	}
-
-	if userConfig.useOpenSSHConfig {
 		return dest, false, nil
 	}
 

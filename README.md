@@ -32,13 +32,13 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 ### 登录界面
 
-- 使用之前，需要配置好 `~/.ssh/config` ( Windows 是 `C:\Users\xxx\.ssh\config`, `xxx` 换成用户名 )。
+- 使用之前，需要配置好 `~/.tssh/config` ( Windows 是 `C:\Users\xxx\.tssh\config`, `xxx` 换成用户名 )。
 
-- 关于如何配置 `~/.ssh/config`，请参考 [openssh](https://manpages.debian.org/bookworm/openssh-client/ssh_config.5.en.html) ( `Match` 中的 `exec` 暂时要参考下文配置 `UseOpenSSHConfig` 才支持 )，或参考 tssh wiki [SSH基本配置](https://github.com/trzsz/trzsz-ssh/wiki/SSH%E5%9F%BA%E6%9C%AC%E9%85%8D%E7%BD%AE)。
+- 关于如何配置 `~/.tssh/config`，请参考 [openssh](https://manpages.debian.org/bookworm/openssh-client/ssh_config.5.en.html)，或参考 tssh wiki [SSH基本配置](https://github.com/trzsz/trzsz-ssh/wiki/SSH%E5%9F%BA%E6%9C%AC%E9%85%8D%E7%BD%AE)。
 
 - 直接无参数运行 `tssh` 命令就会打开登录界面，或者有除目标机器外的其他参数也会打开登录界面。
 
-- 如果目标机器参数是 `~/.ssh/config` 中别名的一部分，不能完全匹配某个别名，也会打开登录界面。
+- 如果目标机器参数是 `~/.tssh/config` 中别名的一部分，不能完全匹配某个别名，也会打开登录界面。
 
 - 如果配置了 `HideHost yes`，或者别名中含有 `*` 或 `?` 通配符时，则不会显示在登录界面中。
 
@@ -58,108 +58,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   | TglSearch | /                               |              | 切换搜索功能    |
   | Tgl Help  | ?                               |              | 切换帮助信息    |
 
-### 主题风格
-
-- `tssh` 支持多种主题风格，在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeLayout` 选用。欢迎一起来创造更多更好看的。
-
-- 每种主题风格都支持自定义颜色，在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeColors`，只要配置非默认的颜色即可。
-
-- 请为你喜欢的主题风格[❤️投票❤️](https://github.com/trzsz/trzsz-ssh/issues/75)，得票数最高的主题风格将会在下个版本被设置为默认主题。
-
-#### tiny 小巧风
-
-- 在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeLayout = tiny` 选用 `tiny 小巧风`。
-  ![tssh tiny](https://trzsz.github.io/images/tssh_tiny.gif)
-
-- 在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeColors`，要求配置成一行。`tiny 小巧风` 支持以下配置项：
-
-  <details><summary><code>tiny 颜色配置项和默认值：</code></summary>
-
-  ```json
-  {
-    "help_tips": "faint",
-    "shortcuts": "faint",
-    "label_icon": "blue",
-    "label_text": "default",
-    "cursor_icon": "green|bold",
-    "active_alias": "cyan|bold",
-    "active_host": "magenta|bold",
-    "active_group": "blue|bold",
-    "inactive_alias": "cyan",
-    "inactive_host": "magenta",
-    "inactive_group": "blue",
-    "details_title": "default",
-    "details_name": "faint",
-    "details_value": "default"
-  }
-  ```
-
-  </details>
-
-  <details><summary><code>tiny 支持的颜色枚举，可用 `|` 连接多个：</code></summary>
-
-  ```
-  default
-  black
-  red
-  green
-  yellow
-  blue
-  magenta
-  cyan
-  white
-  bgBlack
-  bgRed
-  bgGreen
-  bgYellow
-  bgBlue
-  bgMagenta
-  bgCyan
-  bgWhite
-  bold
-  faint
-  italic
-  underline
-  ```
-
-  </details>
-
-#### simple 简约风
-
-- 在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeLayout = simple` 选用 `simple 简约风`。
-  ![tssh simple](https://trzsz.github.io/images/tssh_simple.gif)
-
-- `simple 简约风` 支持的颜色配置项、默认值和颜色枚举，和 `tiny 小巧风` 完全相同，请参考前文。
-
-#### table 表格风
-
-- 在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeLayout = table` 选用 `table 表格风`。
-  ![tssh table](https://trzsz.github.io/images/tssh_table.gif)
-
-- 在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中配置 `PromptThemeColors`，要求配置成一行。`table 表格风` 支持以下配置项：
-
-  <details><summary><code>table 颜色配置项和默认值：</code></summary>
-
-  ```json
-  {
-    "help_tips": "faint",
-    "shortcuts": "faint",
-    "table_header": "10",
-    "default_alias": "6",
-    "default_host": "5",
-    "default_group": "4",
-    "default_border": "8",
-    "selected_border": "10",
-    "details_name": "4",
-    "details_value": "3",
-    "details_border": "8"
-  }
-  ```
-
-  </details>
-
-- 支持的颜色枚举请参考 [lipgloss](https://github.com/charmbracelet/lipgloss#colors)，除了 `help_tips` 和 `shortcuts` 与前文 `tiny 小巧风` 相同。
-
 ### 支持 lrzsz zmodem
 
 - `rz / sz` 功能默认开启。
@@ -170,11 +68,11 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   scoop install lrzsz / choco install lrzsz / winget install lrzsz
   ```
 
-- 在 `~/.ssh/config` 或 `ExConfigPath` 配置文件中，配置 `EnableZmodem` 为 `No` 禁用 `rz / sz` 功能。
+- 在 `~/.tssh/config` 或 `~/.tssh/password` 中，配置 `EnableZmodem` 为 `No` 禁用 `rz / sz` 功能。
 
   ```
   Host no_zmodem
-    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
+    # tssh 专有配置也可以放在 ~/.tssh/password 中
     EnableZmodem No
   ```
 
@@ -295,7 +193,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 - 下面配置 `test1` 和 `test2` 的密码是 `123456`，其他以 `test` 开头的密码是 `111111`：
 
   ```
-  # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
+  # tssh 专有配置也可以放在 ~/.tssh/password 中
   Host test1 test2
       Password 123456
 
@@ -400,7 +298,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 - 使用 `tssh --debug` 登录，会输出问题的 hex 编码，从而知道该如何使用 hex 编码进行配置。配置举例：
 
   ```
-  # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
+  # tssh 专有配置也可以放在 ~/.tssh/password 中
   Host test1
       QuestionAnswer1 答案一
   Host test2
@@ -450,50 +348,6 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
       CtrlExpectSendOtp1 oathtool --totp -b xxxxx  # 配置获取动态密码的命令（明文）
   ```
 
-### 个性配置
-
-- 支持在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf`，Windows 是 `C:\Users\your_name\.tssh.conf` ）中进行以下自定义配置：
-
-  ```
-  # SSH 配置路径，默认为 ~/.ssh/config
-  ConfigPath = ~/.ssh/config
-
-  # 扩展配置路径，默认为 ~/.ssh/password
-  ExConfigPath = ~/.ssh/password
-
-  # 上传时，对话框打开的路径，为空时打开上次的路径， 默认为空
-  DefaultUploadPath = ~/Downloads
-
-  # 下载时，自动保存的路径，为空时弹出对话框手工选择，默认为空
-  DefaultDownloadPath = ~/Downloads
-
-  # 传输进度条将从第一种颜色渐变到第二种颜色。注意不要带 `#`。
-  ProgressColorPair = B14FFF 00FFA3
-
-  # tssh 搜索和选择服务器时，配置主题风格和自定义颜色
-  PromptThemeLayout = simple
-  PromptThemeColors = {"active_host": "magenta|bold", "inactive_host": "magenta"}
-
-  # tssh 搜索和选择服务器时，每页显示的记录数，默认为 10
-  PromptPageSize = 10
-
-  # tssh 搜索和选择服务器时，默认是类似 vim 的 normal 模式，想默认进入搜索模式可如下配置：
-  PromptDefaultMode = search
-
-  # tssh 搜索和选择服务器时，详情中显示的配置列表，默认如下：
-  PromptDetailItems = Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand
-
-  # tssh 搜索和选择服务器时，可以自定义光标和选中的图标：
-  PromptCursorIcon = 🧨
-  PromptSelectedIcon = 🍺
-
-  # 登录后自动设置终端标题，退出后不会重置，你需要参考下文在本地 shell 中设置 PROMPT_COMMAND
-  SetTerminalTitle = Yes
-
-  # 使用 `ssh -G` 解析 OpenSSH 配置，包括 `Match` 规则
-  UseOpenSSHConfig = Yes
-  ```
-
 ### 配置注释
 
 - `tssh` 配置中的注释基本与 `openssh` 一致，详见下表：
@@ -510,11 +364,11 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 ### Wayland 集成
 
-- 在 `~/.ssh/config` 或 `ExConfigPath` 配置文件中，配置 `EnableWaypipe` 为 `Yes` 启用 Wayland (waypipe) 集成功能。
+- 在 `~/.tssh/config` 或 `~/.tssh/password` 中，配置 `EnableWaypipe` 为 `Yes` 启用 Wayland (waypipe) 集成功能。
 
   ```
   Host xxx
-    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
+    # tssh 专有配置也可以放在 ~/.tssh/password 中
     EnableWaypipe Yes
   ```
 
@@ -537,11 +391,11 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 ### 剪贴板集成
 
-- 在 `~/.ssh/config` 或 `ExConfigPath` 配置文件中，配置 `EnableOSC52` 为 `Yes` 启用剪贴板集成功能。
+- 在 `~/.tssh/config` 或 `~/.tssh/password` 中，配置 `EnableOSC52` 为 `Yes` 启用剪贴板集成功能。
 
   ```
   Host *
-    # 如果该文件也会被标准 ssh 使用，请将 tssh 专有配置放到 `ExConfigPath` 中
+    # tssh 专有配置也可以放在 ~/.tssh/password 中
     EnableOSC52 Yes
   ```
 
@@ -581,7 +435,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
   PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME}: ${PWD}\007"'
   ```
 
-  - 如果在 `$XDG_CONFIG_HOME/tssh/tssh.conf` ( 或 `~/.tssh.conf` ) 中设置了 `SetTerminalTitle = Yes`，则会在登录后自动设置终端标题，但是服务器上的 `PROMPT_COMMAND` 会覆盖 `tssh` 设置的标题。
+  - 如果在主机配置中设置了 `SetTerminalTitle Yes`，则会在登录后自动设置终端标题，但是服务器上的 `PROMPT_COMMAND` 会覆盖 `tssh` 设置的标题。
   - 在 `tssh` 退出后不会重置为原来的标题，你需要在本地 shell 中设置 `PROMPT_COMMAND`，让它覆盖 `tssh` 设置的标题。
 
 - 支持 DNS SRV，假设你家里有多台主机，但你只有一个公网 IP，你可以像下面这样设置 SRV 记录，并在 `~/.ssh/config` 中类似配置：
@@ -626,7 +480,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 如果在 `~/.ssh/config` 中配置了 `tssh` 特有的配置项后，标准 `ssh` 报错 `Bad configuration option`。
 
-  - 请将 tssh 专有配置移动到 `ExConfigPath`，或者移动到仅供 `tssh` 使用的配置文件中。配置项直接使用 `Key Value` 格式书写。
+  - 请将 tssh 专有配置移动到 `~/.tssh/config` 或 `~/.tssh/password` 中。配置项直接使用 `Key Value` 格式书写。
 
 ### 联系方式
 

@@ -434,13 +434,6 @@ func getPublicKeysAuthMethod(param *sshParam) ssh.AuthMethod {
 			warning("expand IdentityFile [%s] failed: %v", identity, err)
 			continue
 		}
-		if userConfig.useOpenSSHConfig {
-			expandedIdentity = resolveHomeDir(expandedIdentity)
-			if !isFileExist(expandedIdentity) {
-				debug("IdentityFile [%s] does not exist", expandedIdentity)
-				continue
-			}
-		}
 		identities = append(identities, expandedIdentity)
 	}
 

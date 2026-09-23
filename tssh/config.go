@@ -25,14 +25,11 @@ SOFTWARE.
 package tssh
 
 import (
-	"bufio"
 	"bytes"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -63,196 +60,18 @@ type sshHost struct {
 }
 
 type tsshConfig struct {
-	language            string
-	configPath          string
-	sysConfigPath       string
-	exConfigPath        string
-	useOpenSSHConfig    bool
-	defaultUploadPath   string
-	defaultDownloadPath string
-	progressColorPair   string
-	promptThemeLayout   string
-	promptThemeColors   map[string]string
-	promptPageSize      uint8
-	promptDefaultMode   string
-	promptDetailItems   string
-	promptCursorIcon    string
-	promptSelectedIcon  string
-	setTerminalTitle    string
-	loadConfig          sync.Once
-	loadExConfig        sync.Once
-	loadHosts           sync.Once
-	config              *ssh_config.Config
-	sysConfig           *ssh_config.Config
-	exConfig            *ssh_config.Config
-	loadDefaultColors   sync.Once
-	defaultThemeColors  map[string]string
-	allHosts            []*sshHost
-	wildcardPatterns    []*ssh_config.Pattern
+	configPath       string
+	exConfigPath     string
+	loadConfig       sync.Once
+	loadExConfig     sync.Once
+	loadHosts        sync.Once
+	config           *ssh_config.Config
+	exConfig         *ssh_config.Config
+	allHosts         []*sshHost
+	wildcardPatterns []*ssh_config.Pattern
 }
 
 var userConfig *tsshConfig
-
-func getTsshConfigPath(forCreating bool) string {
-	xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	if xdgConfigHome == "" {
-		xdgConfigHome = filepath.Join(userHomeDir, ".config")
-	}
-	xdgPath := filepath.Join(xdgConfigHome, "tssh/tssh.conf")
-	if isFileExist(xdgPath) {
-		return xdgPath
-	}
-	homePath := filepath.Join(userHomeDir, ".tssh.conf")
-	if isFileExist(homePath) {
-		return homePath
-	}
-	if forCreating {
-		if isDirExist(xdgConfigHome) {
-			cfgPath := filepath.Join(xdgConfigHome, "tssh")
-			if err := os.Mkdir(cfgPath, 0700); err != nil {
-				warning("create config path [%s] failed: %v", cfgPath, err)
-			}
-			return xdgPath
-		}
-		return homePath
-	}
-	debug("%s or %s does not exist", xdgPath, homePath)
-	return ""
-}
-
-func parseTsshConfig() {
-	path := getTsshConfigPath(false)
-	if path == "" {
-		return
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		warning("open %s failed: %v", path, err)
-		return
-	}
-	defer func() { _ = file.Close() }()
-	debug("open %s success", path)
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		idx := strings.Index(line, "#")
-		if idx >= 0 {
-			line = line[:idx]
-		}
-		idx = strings.Index(line, "=")
-		if idx < 0 {
-			continue
-		}
-		name := strings.ToLower(strings.TrimSpace(line[:idx]))
-		value := strings.TrimSpace(line[idx+1:])
-		if name == "" || value == "" {
-			continue
-		}
-		switch {
-		case name == "language" && userConfig.language == "":
-			userConfig.language = value
-		case name == "configpath" && userConfig.configPath == "":
-			userConfig.configPath = resolveHomeDir(value)
-		case name == "exconfigpath" && userConfig.exConfigPath == "":
-			userConfig.exConfigPath = resolveHomeDir(value)
-		case name == "useopensshconfig" && !userConfig.useOpenSSHConfig:
-			switch strings.ToLower(value) {
-			case "1", "true", "yes", "on":
-				userConfig.useOpenSSHConfig = true
-			}
-		case name == "defaultuploadpath" && userConfig.defaultUploadPath == "":
-			userConfig.defaultUploadPath = resolveHomeDir(value)
-		case name == "defaultdownloadpath" && userConfig.defaultDownloadPath == "":
-			userConfig.defaultDownloadPath = resolveHomeDir(value)
-		case name == "progresscolorpair" && userConfig.progressColorPair == "":
-			userConfig.progressColorPair = value
-		case name == "promptthemelayout" && userConfig.promptThemeLayout == "":
-			userConfig.promptThemeLayout = value
-		case name == "promptthemecolors" && len(userConfig.promptThemeColors) == 0:
-			if err := json.Unmarshal([]byte(value), &userConfig.promptThemeColors); err != nil {
-				warning("PromptThemeColors %s is invalid: %v", value, err)
-			}
-		case name == "promptpagesize" && userConfig.promptPageSize == 0:
-			pageSize, err := strconv.ParseUint(value, 10, 8)
-			if err != nil {
-				warning("PromptPageSize %s is invalid: %v", value, err)
-			} else {
-				userConfig.promptPageSize = uint8(pageSize)
-			}
-		case name == "promptdefaultmode" && userConfig.promptDefaultMode == "":
-			userConfig.promptDefaultMode = value
-		case name == "promptdetailitems" && userConfig.promptDetailItems == "":
-			userConfig.promptDetailItems = value
-		case name == "promptcursoricon" && userConfig.promptCursorIcon == "":
-			userConfig.promptCursorIcon = value
-		case name == "promptselectedicon" && userConfig.promptSelectedIcon == "":
-			userConfig.promptSelectedIcon = value
-		case name == "setterminaltitle" && userConfig.setTerminalTitle == "":
-			userConfig.setTerminalTitle = value
-		}
-	}
-
-	if userConfig.promptCursorIcon != "" {
-		promptCursorIcon = userConfig.promptCursorIcon
-	}
-	if userConfig.promptSelectedIcon != "" {
-		promptSelectedIcon = userConfig.promptSelectedIcon
-	}
-
-	if enableDebugLogging {
-		showTsshConfig()
-	}
-}
-
-func showTsshConfig() {
-	if userConfig.language != "" {
-		debug("Language = %s", userConfig.language)
-	}
-	if userConfig.configPath != "" {
-		debug("ConfigPath = %s", userConfig.configPath)
-	}
-	if userConfig.exConfigPath != "" {
-		debug("ExConfigPath = %s", userConfig.exConfigPath)
-	}
-	if userConfig.useOpenSSHConfig {
-		debug("UseOpenSSHConfig = true")
-	}
-	if userConfig.defaultUploadPath != "" {
-		debug("DefaultUploadPath = %s", userConfig.defaultUploadPath)
-	}
-	if userConfig.defaultDownloadPath != "" {
-		debug("DefaultDownloadPath = %s", userConfig.defaultDownloadPath)
-	}
-	if userConfig.progressColorPair != "" {
-		debug("ProgressColorPair = %s", userConfig.progressColorPair)
-	}
-	if userConfig.promptThemeLayout != "" {
-		debug("PromptThemeLayout = %s", userConfig.promptThemeLayout)
-	}
-	if len(userConfig.promptThemeColors) > 0 {
-		debug("PromptThemeColors = %s", userConfig.promptThemeColors)
-	}
-	if userConfig.promptPageSize != 0 {
-		debug("PromptPageSize = %d", userConfig.promptPageSize)
-	}
-	if userConfig.promptDefaultMode != "" {
-		debug("PromptDefaultMode = %s", userConfig.promptDefaultMode)
-	}
-	if userConfig.promptDetailItems != "" {
-		debug("PromptDetailItems = %s", userConfig.promptDetailItems)
-	}
-	if userConfig.promptCursorIcon != "" {
-		debug("PromptCursorIcon = %s", userConfig.promptCursorIcon)
-	}
-	if userConfig.promptSelectedIcon != "" {
-		debug("PromptSelectedIcon = %s", userConfig.promptSelectedIcon)
-	}
-	if userConfig.setTerminalTitle != "" {
-		debug("SetTerminalTitle = %s", userConfig.setTerminalTitle)
-	}
-}
 
 func initUserConfig(configFile string) (err error) {
 	userConfig = &tsshConfig{}
@@ -267,26 +86,16 @@ func initUserConfig(configFile string) (err error) {
 		warning("Failed to obtain the home directory. Using the current directory as the home directory.")
 	}
 
+	userConfig.configPath = filepath.Join(userHomeDir, ".tssh", "config")
 	if configFile != "" {
 		userConfig.configPath = resolveHomeDir(configFile)
 	}
-
-	parseTsshConfig()
-
-	if userConfig.configPath == "" {
-		userConfig.configPath = filepath.Join(userHomeDir, ".tssh", "config")
-	} else if strings.ToLower(userConfig.configPath) == "none" {
-		userConfig.configPath = ""
-	}
-
-	if userConfig.exConfigPath == "" {
-		userConfig.exConfigPath = filepath.Join(userHomeDir, ".tssh", "password")
-	}
+	userConfig.exConfigPath = filepath.Join(userHomeDir, ".tssh", "password")
 
 	return nil
 }
 
-func loadConfig(path string, system bool) *ssh_config.Config {
+func loadConfig(path string) *ssh_config.Config {
 	file, err := os.Open(path)
 	if err != nil {
 		warning("open config [%s] failed: %v", path, err)
@@ -295,12 +104,7 @@ func loadConfig(path string, system bool) *ssh_config.Config {
 	defer func() { _ = file.Close() }()
 	debug("open config [%s] success", path)
 
-	var config *ssh_config.Config
-	if system {
-		config, err = ssh_config.DecodeSystemConfig(file)
-	} else {
-		config, err = ssh_config.Decode(file)
-	}
+	config, err := ssh_config.Decode(file)
 	if err != nil {
 		warning("decode config [%s] failed: %v", path, err)
 		return nil
@@ -317,15 +121,7 @@ func (c *tsshConfig) doLoadConfig() {
 			debug("no ssh configuration file path")
 			return
 		}
-		c.config = loadConfig(c.configPath, false)
-
-		if c.sysConfigPath != "" {
-			if !isFileExist(c.sysConfigPath) {
-				debug("system config [%s] does not exist", c.sysConfigPath)
-				return
-			}
-			c.sysConfig = loadConfig(c.sysConfigPath, true)
-		}
+		c.config = loadConfig(c.configPath)
 	})
 }
 
@@ -339,19 +135,11 @@ func (c *tsshConfig) doLoadExConfig() {
 			debug("extended config [%s] does not exist", c.exConfigPath)
 			return
 		}
-		c.exConfig = loadConfig(c.exConfigPath, false)
+		c.exConfig = loadConfig(c.exConfigPath)
 	})
 }
 
 func getConfig(alias, key string) string {
-	if userConfig.useOpenSSHConfig {
-		if cfg := getOpenSSHEffectiveConfig(alias, nil, "", ""); cfg != nil {
-			if value := cfg.get(key); value != "" {
-				return value
-			}
-		}
-	}
-
 	userConfig.doLoadConfig()
 
 	if userConfig.config != nil {
@@ -363,47 +151,16 @@ func getConfig(alias, key string) string {
 		}
 	}
 
-	if userConfig.sysConfig != nil {
-		value, err := userConfig.sysConfig.Get(alias, key)
-		if err != nil {
-			warning("get sys config [%s] for [%s] failed: %v", key, alias, err)
-		} else if value != "" {
-			return value
-		}
-	}
-
 	return ssh_config.Default(key)
 }
 
 func getConfigSplits(alias, key string) []string {
-	if userConfig.useOpenSSHConfig {
-		if cfg := getOpenSSHEffectiveConfig(alias, nil, "", ""); cfg != nil {
-			if value := cfg.get(key); value != "" {
-				values, err := shlex.Split(value)
-				if err != nil {
-					warning("split effective config [%s] value [%s] failed: %v", key, value, err)
-				} else if len(values) > 0 {
-					return values
-				}
-			}
-		}
-	}
-
 	userConfig.doLoadConfig()
 
 	if userConfig.config != nil {
 		values, err := userConfig.config.GetSplits(alias, key)
 		if err != nil {
 			warning("get user config splits [%s] for [%s] failed: %v", key, alias, err)
-		} else if len(values) > 0 {
-			return values
-		}
-	}
-
-	if userConfig.sysConfig != nil {
-		values, err := userConfig.sysConfig.GetSplits(alias, key)
-		if err != nil {
-			warning("get sys config splits [%s] for [%s] failed: %v", key, alias, err)
 		} else if len(values) > 0 {
 			return values
 		}
@@ -422,14 +179,6 @@ func getConfigSplits(alias, key string) []string {
 }
 
 func getAllConfig(alias, key string) []string {
-	if userConfig.useOpenSSHConfig {
-		if cfg := getOpenSSHEffectiveConfig(alias, nil, "", ""); cfg != nil {
-			if values := cfg.getAll(key); len(values) > 0 {
-				return values
-			}
-		}
-	}
-
 	userConfig.doLoadConfig()
 
 	var values []string
@@ -437,14 +186,6 @@ func getAllConfig(alias, key string) []string {
 		vals, err := userConfig.config.GetAll(alias, key)
 		if err != nil {
 			warning("get all user config [%s] for [%s] failed: %v", key, alias, err)
-		} else if len(vals) > 0 {
-			values = append(values, vals...)
-		}
-	}
-	if userConfig.sysConfig != nil {
-		vals, err := userConfig.sysConfig.GetAll(alias, key)
-		if err != nil {
-			warning("get all sys config [%s] for [%s] failed: %v", key, alias, err)
 		} else if len(vals) > 0 {
 			values = append(values, vals...)
 		}
@@ -460,23 +201,6 @@ func getAllConfig(alias, key string) []string {
 }
 
 func getAllConfigSplits(alias, key string) []string {
-	if userConfig.useOpenSSHConfig {
-		if cfg := getOpenSSHEffectiveConfig(alias, nil, "", ""); cfg != nil {
-			var values []string
-			for _, value := range cfg.getAll(key) {
-				vals, err := shlex.Split(value)
-				if err != nil {
-					warning("split effective config [%s] value [%s] failed: %v", key, value, err)
-				} else if len(vals) > 0 {
-					values = append(values, vals...)
-				}
-			}
-			if len(values) > 0 {
-				return values
-			}
-		}
-	}
-
 	userConfig.doLoadConfig()
 
 	var values []string
@@ -484,14 +208,6 @@ func getAllConfigSplits(alias, key string) []string {
 		vals, err := userConfig.config.GetAllSplits(alias, key)
 		if err != nil {
 			warning("get all user config splits [%s] for [%s] failed: %v", key, alias, err)
-		} else if len(vals) > 0 {
-			values = append(values, vals...)
-		}
-	}
-	if userConfig.sysConfig != nil {
-		vals, err := userConfig.sysConfig.GetAllSplits(alias, key)
-		if err != nil {
-			warning("get all sys config splits [%s] for [%s] failed: %v", key, alias, err)
 		} else if len(vals) > 0 {
 			values = append(values, vals...)
 		}
@@ -557,9 +273,6 @@ func getAllHosts() []*sshHost {
 		userConfig.doLoadConfig()
 		if userConfig.config != nil {
 			userConfig.allHosts = append(userConfig.allHosts, recursiveGetHosts(userConfig.config.Hosts)...)
-		}
-		if userConfig.sysConfig != nil {
-			userConfig.allHosts = append(userConfig.allHosts, recursiveGetHosts(userConfig.sysConfig.Hosts)...)
 		}
 		addAfterLoginFunc(func() { userConfig.allHosts = nil; userConfig.wildcardPatterns = nil })
 	})
@@ -723,48 +436,4 @@ func getSecretConfig(param *sshParam, key string) string {
 		}
 	}
 	return getExConfig(alias, key)
-}
-
-func getPromptPageSize() int {
-	if userConfig.promptPageSize != 0 {
-		return int(userConfig.promptPageSize)
-	}
-	return 10
-}
-
-func getPromptDetailItems() []string {
-	promptDetailItems := userConfig.promptDetailItems
-	if promptDetailItems == "" {
-		promptDetailItems = "Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand"
-	}
-	return strings.Fields(promptDetailItems)
-}
-
-func getThemeColor(key string) string {
-	userConfig.loadDefaultColors.Do(func() {
-		colors := "{}"
-		switch strings.ToLower(userConfig.promptThemeLayout) {
-		case "tiny", "simple":
-			colors = `{"help_tips": "faint", "shortcuts": "faint", "label_icon": "blue", "label_text": "default", "cursor_icon": "green|bold",` +
-				`"active_alias": "cyan|bold", "active_host": "magenta|bold", "active_group": "blue|bold",` +
-				`"inactive_alias": "cyan", "inactive_host": "magenta", "inactive_group": "blue",` +
-				`"details_title": "default", "details_name": "faint", "details_value": "default"}`
-		case "table":
-			colors = `{"help_tips": "faint", "shortcuts": "faint", "table_header": "10",` +
-				`"default_alias": "6", "default_host": "5", "default_group": "4",` +
-				`"default_border": "8", "selected_border": "10",` +
-				`"details_name": "4", "details_value": "3", "details_border": "8"}`
-		}
-		if err := json.Unmarshal([]byte(colors), &userConfig.defaultThemeColors); err != nil {
-			warning("load theme [%s] colors %s failed: %v", userConfig.promptThemeLayout, colors, err)
-		}
-	})
-	if value, ok := userConfig.promptThemeColors[key]; ok {
-		return value
-	}
-	if value, ok := userConfig.defaultThemeColors[key]; ok {
-		return value
-	}
-	warning("no theme color for key [%s]", key)
-	return ""
 }

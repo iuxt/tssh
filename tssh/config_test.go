@@ -24,14 +24,29 @@ SOFTWARE.
 
 package tssh
 
-var english = map[string]string{
-	"console/title":     "Tssh Console",
-	"console/send_char": "Send the escape character '{0}' ( {0} : Enter '{0}' )",
-	"console/suspend":   "Suspend the current SSH process ( ^Z : Ctrl + Z )",
-	"console/terminate": "Terminate the current SSH session ( . : Exit / Kill )",
-	"console/notes":     "↑/↓/j/k Move • Enter Select • q Quit",
-}
+import (
+	"os"
+	"path/filepath"
+	"testing"
 
-func getText(key string) string {
-	return english[key]
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestInitUserConfigDoesNotLoadGlobalConfig(t *testing.T) {
+	originalConfig, originalHome := userConfig, userHomeDir
+	defer func() { userConfig, userHomeDir = originalConfig, originalHome }()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".tssh.conf"),
+		[]byte("ConfigPath = /legacy/config\nPromptThemeLayout = table\n"), 0600))
+
+	require.NoError(t, initUserConfig(""))
+	assert.Equal(t, filepath.Join(home, ".tssh", "config"), userConfig.configPath)
+	assert.Equal(t, filepath.Join(home, ".tssh", "password"), userConfig.exConfigPath)
+
+	require.NoError(t, initUserConfig("~/custom-config"))
+	assert.Equal(t, filepath.Join(home, "custom-config"), userConfig.configPath)
 }

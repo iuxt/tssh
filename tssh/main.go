@@ -293,11 +293,9 @@ func sshStart(args *sshArgs) (int, error) {
 	sshX11Forward(sshConn)
 
 	// set terminal title
-	if userConfig.setTerminalTitle != "" {
-		switch strings.ToLower(userConfig.setTerminalTitle) {
-		case "yes", "true":
-			setTerminalTitle(args.Destination)
-		}
+	switch strings.ToLower(getExOptionConfig(args, "SetTerminalTitle")) {
+	case "yes", "true":
+		setTerminalTitle(args.Destination)
 	}
 
 	// enable waypipe

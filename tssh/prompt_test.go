@@ -27,8 +27,10 @@ package tssh
 import (
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/trzsz/promptui"
 )
 
@@ -50,5 +52,23 @@ func TestPromptShortcutsDoNotIncludeMultipleSelection(t *testing.T) {
 
 	for _, action := range []string{"TglSelect", "SelectAll", "SelectOpp", "Open Wins", "Open Tabs", "Open Pane"} {
 		assert.NotContains(t, shortcuts, action)
+	}
+}
+
+func TestPromptStyleTemplates(t *testing.T) {
+	funcMap := template.FuncMap{}
+	for name, fn := range promptui.FuncMap {
+		funcMap[name] = fn
+	}
+	funcMap["getExConfig"] = func(string, string) string { return "" }
+	funcMap["hasField"] = func(any, string) bool { return true }
+
+	style := getPromptStyle()
+	for name, source := range map[string]string{
+		"help": style.Help, "label": style.Label, "active": style.Active,
+		"inactive": style.Inactive, "details": style.Details, "shortcuts": style.Shortcuts,
+	} {
+		_, err := template.New(name).Funcs(funcMap).Parse(source)
+		require.NoError(t, err, name)
 	}
 }

@@ -1,37 +1,17 @@
 # tssh example configuration
 #
-# This file demonstrates the SSH-style configuration loaded by tssh from
-# `ConfigPath` and `ExConfigPath`.
+# This file demonstrates the SSH-style configuration loaded by tssh.
 #
-# Default paths:
-#   ConfigPath   = ~/.tssh/config
-#   ExConfigPath = ~/.tssh/password
+# Files loaded automatically:
+#   ~/.tssh/config
+#   ~/.tssh/password
+# Use `tssh -F /path/to/config` to select a different host configuration file.
 #
 # Recommended layout:
 #   - Put normal OpenSSH-compatible options in ~/.ssh/config or ~/.tssh/config.
-#   - Put tssh-specific options and secrets in ExConfigPath, so OpenSSH will not
-#     read options it does not understand.
+#   - Put tssh-specific options and secrets in ~/.tssh/password.
 #   - Write configuration directives directly as `Key Value`.
 #
-# Global tssh UI settings are NOT read from this SSH-style file. Put them in
-# `$XDG_CONFIG_HOME/tssh/tssh.conf` or `~/.tssh.conf`, for example:
-#
-#   Language = zh_CN
-#   ConfigPath = ~/.ssh/config
-#   ExConfigPath = ~/.tssh/password
-#   UseOpenSSHConfig = Yes
-#   PromptThemeLayout = table
-#   PromptPageSize = 12
-#   PromptDefaultMode = search
-#   PromptDetailItems = Alias Host Port User GroupLabels IdentityFile ProxyCommand ProxyJump RemoteCommand
-#   PromptCursorIcon = >
-#   PromptSelectedIcon = *
-#   SetTerminalTitle = Yes
-#   DefaultUploadPath = ~/Downloads
-#   DefaultDownloadPath = ~/Downloads
-#   ProgressColorPair = 2,4
-
-
 # -----------------------------------------------------------------------------
 # Base defaults
 # -----------------------------------------------------------------------------
@@ -66,6 +46,7 @@ Host *
     EnableOSC52 yes
     DefaultUploadPath ~/Downloads
     DefaultDownloadPath ~/Downloads
+    ProgressColorPair 2,4
 
     # Console escape. Set ConsoleEscapeTime to 0 to disable tssh console escape.
     EscapeChar ~
@@ -275,10 +256,10 @@ Host with-local-command
 
 
 # -----------------------------------------------------------------------------
-# Secrets in ExConfigPath
+# Secrets in ~/.tssh/password
 # -----------------------------------------------------------------------------
 #
-# Put this section in ExConfigPath, e.g. ~/.tssh/password. Keeping secrets out of
+# Put this section in ~/.tssh/password. Keeping secrets out of
 # ~/.ssh/config avoids OpenSSH "Bad configuration option" errors and reduces
 # accidental exposure.
 #
