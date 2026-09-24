@@ -42,6 +42,7 @@ var promptSelectedIcon = "🍺"
 
 const (
 	defaultPromptPageSize = 10
+	defaultPromptWidth    = 80
 	promptHeaderRows      = 3 // help/search, keywords, and label
 
 	keyCtrlB = '\x02'
@@ -61,6 +62,7 @@ const (
 
 type sshPrompt struct {
 	selector      *promptui.Select
+	layout        *promptLayout
 	pipeOut       io.WriteCloser
 	hosts         []*sshHost
 	showShortcuts bool
@@ -105,25 +107,12 @@ var normalShortcuts = []sshShortcuts{
 }
 
 func (p *sshPrompt) getShortcuts() []string {
-	if !p.showShortcuts {
-		p.selector.HideHelp = false
-		return nil
-	}
+	// Navigation help is permanently shown in the right-hand panel.
 	p.selector.HideHelp = true
-	shortcuts := []string{"Shortcuts:"}
-	addShortcuts := func(ss []sshShortcuts) {
-		for _, s := range ss {
-			keys := s.globalKeys
-			if p.search {
-				keys = append(keys, s.searchKeys...)
-			} else {
-				keys = append(keys, s.nonSearchKeys...)
-			}
-			shortcuts = append(shortcuts, fmt.Sprintf("  %s:  %s", s.actionName, strings.Join(keys, "  ")))
-		}
+	if p.layout != nil {
+		p.layout.showShortcuts.Store(p.showShortcuts)
 	}
-	addShortcuts(normalShortcuts)
-	return shortcuts
+	return nil
 }
 
 func (p *sshPrompt) getPageCount() int {
@@ -134,29 +123,7 @@ func (p *sshPrompt) getPageCount() int {
 	return (len(p.hosts)-1)/pageSize + 1
 }
 
-func getPromptDetailRows(host *sshHost) int {
-	rows := 1 // details separator
-	for _, value := range []string{
-		host.Alias,
-		host.Host,
-		host.User,
-		host.GroupLabels,
-		host.IdentityFile,
-		host.ProxyCommand,
-		host.ProxyJump,
-		host.RemoteCommand,
-	} {
-		if value != "" {
-			rows++
-		}
-	}
-	if host.Port != "22" {
-		rows++
-	}
-	return rows
-}
-
-func calculatePromptPageSize(terminalHeight, detailRows int) int {
+func calculatePromptPageSize(terminalHeight int) int {
 	if terminalHeight <= 0 {
 		return defaultPromptPageSize
 	}
@@ -164,26 +131,19 @@ func calculatePromptPageSize(terminalHeight, detailRows int) int {
 	// Keep one row unused because promptui terminates every rendered row with a
 	// newline. This prevents the terminal from scrolling when the last row is
 	// drawn.
-	pageSize := terminalHeight - promptHeaderRows - detailRows - 1
+	pageSize := terminalHeight - promptHeaderRows - 1
 	if pageSize < 1 {
 		return 1
 	}
 	return pageSize
 }
 
-func getPromptPageSize(hosts []*sshHost) int {
-	_, height, err := getTerminalSize()
+func getPromptScreenSize() (int, int) {
+	width, height, err := getTerminalSize()
 	if err != nil {
-		return defaultPromptPageSize
+		return defaultPromptWidth, defaultPromptPageSize
 	}
-
-	detailRows := 1
-	for _, host := range hosts {
-		if rows := getPromptDetailRows(host); rows > detailRows {
-			detailRows = rows
-		}
-	}
-	return calculatePromptPageSize(height, detailRows)
+	return width, calculatePromptPageSize(height)
 }
 
 func (p *sshPrompt) userQuit(buf []byte) bool {
@@ -482,26 +442,34 @@ func chooseAlias(keywords string) (string, bool, error) {
 	}
 
 	pipeIn, pipeOut := io.Pipe()
+	promptWidth, promptPageSize := getPromptScreenSize()
+	layout := newPromptLayout(promptWidth, promptPageSize)
 	prompt := sshPrompt{
 		selector: &promptui.Select{
 			Label: "SSH Alias",
 			Items: hosts,
 			Templates: &promptui.SelectTemplates{
-				Help:      style.Help,
-				Label:     style.Label,
-				Active:    style.Active,
-				Inactive:  style.Inactive,
-				Details:   style.Details,
-				Shortcuts: style.Shortcuts,
-				FuncMap:   funcMap,
+				Help:          style.Help,
+				Label:         style.Label,
+				Active:        style.Active,
+				Inactive:      style.Inactive,
+				Details:       style.Details,
+				Shortcuts:     style.Shortcuts,
+				ItemsRenderer: layout.render,
+				DetailsRenderer: func(any) string {
+					return ""
+				},
+				FuncMap: funcMap,
 			},
-			Size:         getPromptPageSize(hosts),
+			Size:         promptPageSize,
 			Searcher:     searcher,
 			Stdin:        pipeIn,
 			Stdout:       &bellFilter{os.Stderr},
+			HideHelp:     true,
 			HideSelected: true,
 			Keywords:     keywords,
 		},
+		layout:  layout,
 		pipeOut: pipeOut,
 		hosts:   hosts,
 	}

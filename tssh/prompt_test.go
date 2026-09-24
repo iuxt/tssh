@@ -29,6 +29,7 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/trzsz/promptui"
@@ -46,19 +47,18 @@ func TestPromptOnlyConfirmsWithEnter(t *testing.T) {
 	assert.False(t, prompt.userConfirm([]byte{keyEnter}))
 }
 
-func TestPromptShortcutsDoNotIncludeMultipleSelection(t *testing.T) {
-	prompt := &sshPrompt{selector: &promptui.Select{}, showShortcuts: true}
-	shortcuts := strings.Join(prompt.getShortcuts(), "\n")
-
-	for _, action := range []string{"TglSelect", "SelectAll", "SelectOpp", "Open Wins", "Open Tabs", "Open Pane"} {
-		assert.NotContains(t, shortcuts, action)
-	}
+func TestPromptShortcutsRenderInRightPanel(t *testing.T) {
+	layout := newPromptLayout(100, 20)
+	prompt := &sshPrompt{selector: &promptui.Select{}, layout: layout, showShortcuts: true}
+	assert.Nil(t, prompt.getShortcuts())
+	assert.True(t, layout.showShortcuts.Load())
+	assert.True(t, prompt.selector.HideHelp)
 }
 
 func TestCalculatePromptPageSize(t *testing.T) {
-	assert.Equal(t, defaultPromptPageSize, calculatePromptPageSize(0, 5))
-	assert.Equal(t, 15, calculatePromptPageSize(24, 5))
-	assert.Equal(t, 1, calculatePromptPageSize(8, 5))
+	assert.Equal(t, defaultPromptPageSize, calculatePromptPageSize(0))
+	assert.Equal(t, 20, calculatePromptPageSize(24))
+	assert.Equal(t, 1, calculatePromptPageSize(4))
 }
 
 func TestPromptPageCountUsesFullScreenSize(t *testing.T) {
@@ -69,13 +69,23 @@ func TestPromptPageCountUsesFullScreenSize(t *testing.T) {
 	assert.Equal(t, 3, prompt.getPageCount())
 }
 
-func TestPromptDetailRows(t *testing.T) {
-	host := &sshHost{Alias: "dev", Host: "dev.example.com", Port: "22", User: "root"}
-	assert.Equal(t, 4, getPromptDetailRows(host))
+func TestPromptTwoColumnLayout(t *testing.T) {
+	layout := newPromptLayout(100, 20)
+	hosts := []interface{}{
+		&sshHost{Alias: "dev", Host: "dev.example.com", Port: "22", User: "root"},
+		&sshHost{Alias: "prod", Host: "prod.example.com", Port: "2222"},
+	}
 
-	host.Port = "2222"
-	host.ProxyJump = "gateway"
-	assert.Equal(t, 6, getPromptDetailRows(host))
+	output := layout.render(hosts, 0)
+	lines := strings.Split(output, "\n")
+	require.Len(t, lines, 20)
+	for _, line := range lines {
+		assert.Equal(t, 100, ansi.StringWidth(line))
+	}
+	plain := ansi.Strip(output)
+	assert.Contains(t, plain, "dev.example.com")
+	assert.Contains(t, plain, "SSH Details")
+	assert.Contains(t, plain, "Instructions")
 }
 
 func TestPromptStyleTemplates(t *testing.T) {
