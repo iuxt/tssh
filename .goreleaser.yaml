@@ -46,32 +46,6 @@ archives:
         format: zip
     files:
       - none*
-nfpms:
-  - id: tssh
-    builds:
-      - tssh
-    section: net
-    file_name_template: >-
-      {{ .ProjectName }}_
-      {{- .Version }}_
-      {{- if eq .Os "darwin" }}macos_
-      {{- else }}{{ .Os }}_{{ end }}
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else if eq .Arch "arm64" }}aarch64
-      {{- else if eq .Arch "arm" }}armv{{ .Arm }}
-      {{- else }}{{ .Arch }}{{ end }}
-    homepage: https://trzsz.github.io/tssh
-    maintainer: Lonny Wong <lonnywong@qq.com>
-    description: |
-      tssh is a highly OpenSSH-compatible client with extended features.
-    license: MIT
-    formats:
-      - rpm
-      - deb
-    bindir: /usr/bin
-    rpm:
-      group: Unspecified
 snapshot:
   name_template: "{{ .Version }}.next"
 checksum:

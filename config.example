@@ -10,7 +10,8 @@
 # Recommended layout:
 #   - Put normal OpenSSH-compatible options in ~/.ssh/config or ~/.tssh/config.
 #   - Put tssh-specific options and secrets in ~/.tssh/password.
-#   - Write configuration directives directly as `Key Value`.
+#   - Write configuration directives directly as `Key Value`. For a secret
+#     containing `#`, use `Key=Value`; see the password example below.
 #
 # -----------------------------------------------------------------------------
 # Base defaults
@@ -270,6 +271,23 @@ Host password-plain
     HostName password.example.com
     User demo
     Password change-me
+
+# In the `Key Value` form, `#` starts a comment. Use `Key=Value` when the
+# password contains a literal `#`; characters such as `\`, `;`, `'`, and `#`
+# are then preserved as part of the password.
+Host password-with-special-characters
+    HostName password.example.com
+    User demo
+    Password=example\_52;with@'#symbols
+
+# Run `tssh --enc-secret` and enter any password (including special characters)
+# to generate an encPassword value. The value below decodes to the same example
+# password above. This is obfuscation with a key embedded in tssh, not secure
+# storage.
+Host password-encrypted
+    HostName password.example.com
+    User demo
+    encPassword 50431eb14e84bac5ca60885455034e6869e1235ea71d32a5cf067804ffc5039cc6aae926eb784a492c9ddef92ab8e68a638fe32dd7cf
 
 Host password-configured
     HostName password.example.com

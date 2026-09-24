@@ -192,6 +192,11 @@ func TsshMain(argv []string) int {
 		}
 	}
 
+	// execute local tools if necessary
+	if code, quit := execLocalTools(&args); quit {
+		return code
+	}
+
 	// choose ssh alias
 	dest := ""
 	quit := false

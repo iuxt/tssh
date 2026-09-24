@@ -77,6 +77,7 @@ type sshArgs struct {
 	NoX11Forward   bool        `arg:"-x,--" help:"disables X11 forwarding"`
 	X11Trusted     bool        `arg:"-Y,--" help:"enables trusted X11 forwarding"`
 	Debug          bool        `arg:"--debug" help:"verbose mode for debugging, same as ssh's -vvv"`
+	EncSecret      bool        `arg:"--enc-secret" help:"[tools] encode secret for configuration"`
 	originalDest   string
 }
 

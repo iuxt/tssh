@@ -204,6 +204,15 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
       Password 111111
   ```
 
+- 密码包含 `#` 等特殊字符时，可以运行 `tssh --enc-secret`，在隐藏输入的提示中输入密码，得到每次都不同的密文。将输出配置为 `encPassword`，tssh 登录时会自动解密。下面的示例密文解密后是 ``example\_52;with@'#symbols``：
+
+  ```
+  Host special-password
+      encPassword 50431eb14e84bac5ca60885455034e6869e1235ea71d32a5cf067804ffc5039cc6aae926eb784a492c9ddef92ab8e68a638fe32dd7cf
+  ```
+
+  `encPassword` 使用兼容旧版本的 AES-GCM 格式，但解密密钥内置在 tssh 中，本质上只能避免明文直接暴露，不能替代密码管理器或文件权限保护。如果同时配置，读取优先级为 `encPassword`、`PasswordCommand`、`Password`；无效的 `encPassword` 会产生警告并回退。
+
 - 如果记住密码后还是要求输入密码，可能是需要[记住答案](#%E8%AE%B0%E4%BD%8F%E7%AD%94%E6%A1%88)，可配置 `QuestionAnswer1` 试试：
 
   ```
@@ -481,5 +490,3 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 - 如果在 `~/.ssh/config` 中配置了 `tssh` 特有的配置项后，标准 `ssh` 报错 `Bad configuration option`。
 
   - 请将 tssh 专有配置移动到 `~/.tssh/config` 或 `~/.tssh/password` 中。配置项直接使用 `Key Value` 格式书写。
-
-

@@ -42,7 +42,7 @@ jobs:
           zip -r tssh_${version}_win7_x86_64.zip tssh_${version}_win7_x86_64
       - name: Show Checksum
         run: |
-          sha256sum dist/*.tar.gz dist/*.zip dist/*.rpm dist/*.deb dist/*_checksums.txt
+          sha256sum dist/*.tar.gz dist/*.zip dist/*_checksums.txt
           sha256sum ./*.zip
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
@@ -53,7 +53,5 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
-            dist/*.rpm
-            dist/*.deb
             dist/*_checksums.txt
             ./*.zip

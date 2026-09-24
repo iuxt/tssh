@@ -26,6 +26,12 @@ package tssh
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -393,6 +399,48 @@ func getAllExOptionConfig(args *sshArgs, option string) []string {
 	return append(args.Option.getAll(option), getAllExConfig(args.Destination, option)...)
 }
 
+var secretEncodeKey = []byte("THE_UNSAFE_KEY_FOR_ENCODING_ONLY")
+
+func encodeSecret(secret []byte) (string, error) {
+	aesCipher, err := aes.NewCipher(secretEncodeKey)
+	if err != nil {
+		return "", err
+	}
+	aesGCM, err := cipher.NewGCM(aesCipher)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", aesGCM.Seal(nonce, nonce, secret, nil)), nil
+}
+
+func decodeSecret(secret string) (string, error) {
+	cipherSecret, err := hex.DecodeString(secret)
+	if err != nil {
+		return "", err
+	}
+	aesCipher, err := aes.NewCipher(secretEncodeKey)
+	if err != nil {
+		return "", err
+	}
+	aesGCM, err := cipher.NewGCM(aesCipher)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := aesGCM.NonceSize()
+	if len(cipherSecret) < nonceSize {
+		return "", fmt.Errorf("too short")
+	}
+	plainSecret, err := aesGCM.Open(nil, cipherSecret[:nonceSize], cipherSecret[nonceSize:], nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plainSecret), nil
+}
+
 func execSecretCommand(param *sshParam, command string) string {
 	expanded, err := expandTokens(command, param, "%hnpr")
 	if err != nil {
@@ -430,6 +478,13 @@ func execSecretCommand(param *sshParam, command string) string {
 
 func getSecretConfig(param *sshParam, key string) string {
 	alias := param.args.Destination
+	if value := getExConfig(alias, "enc"+key); value != "" {
+		secret, err := decodeSecret(value)
+		if err == nil && secret != "" {
+			return secret
+		}
+		warning("decode encrypted configuration [enc%s] for [%s] failed: %v", key, alias, err)
+	}
 	if command := getExConfig(alias, key+"Command"); command != "" {
 		if secret := execSecretCommand(param, command); secret != "" {
 			return secret

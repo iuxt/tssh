@@ -88,6 +88,7 @@ func TestSshArgs(t *testing.T) {
 	assertArgsEqual("dest cmd", sshArgs{Destination: "dest", Command: "cmd"})
 	assertArgsEqual("dest cmd arg1", sshArgs{Destination: "dest", Command: "cmd", Argument: []string{"arg1"}})
 	assertArgsEqual("dest cmd arg1 arg2", sshArgs{Destination: "dest", Command: "cmd", Argument: []string{"arg1", "arg2"}})
+	assertArgsEqual("--enc-secret", sshArgs{EncSecret: true})
 
 	assertArgsEqual("-tp222 -oRemoteCommand=none -i~/.ssh/id_rsa -o ServerAliveCountMax=2 dest cmd arg1 arg2",
 		sshArgs{ForceTTY: true, Port: 222, Identity: multiStr{values: []string{"~/.ssh/id_rsa"}},
@@ -112,7 +113,6 @@ func TestSshArgs(t *testing.T) {
 	_ = assertArgsError("-R", "missing value for -R")
 	_ = assertArgsError("--zmodem", "unknown argument")
 	_ = assertArgsError("--dns 8.8.8.8", "unknown argument")
-	_ = assertArgsError("--enc-secret", "unknown argument")
 	_ = assertArgsError("--list-hosts", "unknown argument")
 	_ = assertArgsError("--reconnect", "unknown argument")
 	_ = assertArgsError("--dragfile", "unknown argument")
