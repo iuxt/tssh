@@ -41,6 +41,9 @@ var promptCursorIcon = "🧨"
 var promptSelectedIcon = "🍺"
 
 const (
+	defaultPromptPageSize = 10
+	promptHeaderRows      = 3 // help/search, keywords, and label
+
 	keyCtrlB = '\x02'
 	keyCtrlC = '\x03'
 	keyCtrlD = '\x04'
@@ -124,7 +127,63 @@ func (p *sshPrompt) getShortcuts() []string {
 }
 
 func (p *sshPrompt) getPageCount() int {
-	return (len(p.hosts)-1)/10 + 1
+	pageSize := p.selector.Size
+	if pageSize <= 0 {
+		pageSize = defaultPromptPageSize
+	}
+	return (len(p.hosts)-1)/pageSize + 1
+}
+
+func getPromptDetailRows(host *sshHost) int {
+	rows := 1 // details separator
+	for _, value := range []string{
+		host.Alias,
+		host.Host,
+		host.User,
+		host.GroupLabels,
+		host.IdentityFile,
+		host.ProxyCommand,
+		host.ProxyJump,
+		host.RemoteCommand,
+	} {
+		if value != "" {
+			rows++
+		}
+	}
+	if host.Port != "22" {
+		rows++
+	}
+	return rows
+}
+
+func calculatePromptPageSize(terminalHeight, detailRows int) int {
+	if terminalHeight <= 0 {
+		return defaultPromptPageSize
+	}
+
+	// Keep one row unused because promptui terminates every rendered row with a
+	// newline. This prevents the terminal from scrolling when the last row is
+	// drawn.
+	pageSize := terminalHeight - promptHeaderRows - detailRows - 1
+	if pageSize < 1 {
+		return 1
+	}
+	return pageSize
+}
+
+func getPromptPageSize(hosts []*sshHost) int {
+	_, height, err := getTerminalSize()
+	if err != nil {
+		return defaultPromptPageSize
+	}
+
+	detailRows := 1
+	for _, host := range hosts {
+		if rows := getPromptDetailRows(host); rows > detailRows {
+			detailRows = rows
+		}
+	}
+	return calculatePromptPageSize(height, detailRows)
 }
 
 func (p *sshPrompt) userQuit(buf []byte) bool {
@@ -436,7 +495,7 @@ func chooseAlias(keywords string) (string, bool, error) {
 				Shortcuts: style.Shortcuts,
 				FuncMap:   funcMap,
 			},
-			Size:         10,
+			Size:         getPromptPageSize(hosts),
 			Searcher:     searcher,
 			Stdin:        pipeIn,
 			Stdout:       &bellFilter{os.Stderr},

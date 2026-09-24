@@ -1,4 +1,4 @@
-name: Release and publish trzsz-ssh
+name: Release trzsz-ssh
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  release-and-publish:
-    name: Release and publish trzsz-ssh
+  release:
+    name: Release trzsz-ssh
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trzsz-ssh
@@ -57,10 +57,3 @@ jobs:
             dist/*.deb
             dist/*_checksums.txt
             ./*.zip
-      - name: Publish rpm to Gemfury
-        env:
-          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
-        run: |
-          for filename in dist/tssh*.rpm; do
-            curl -F package=@"$filename" https://{$FURY_TOKEN}@push.fury.io/trzsz/
-          done

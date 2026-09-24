@@ -55,6 +55,29 @@ func TestPromptShortcutsDoNotIncludeMultipleSelection(t *testing.T) {
 	}
 }
 
+func TestCalculatePromptPageSize(t *testing.T) {
+	assert.Equal(t, defaultPromptPageSize, calculatePromptPageSize(0, 5))
+	assert.Equal(t, 15, calculatePromptPageSize(24, 5))
+	assert.Equal(t, 1, calculatePromptPageSize(8, 5))
+}
+
+func TestPromptPageCountUsesFullScreenSize(t *testing.T) {
+	prompt := &sshPrompt{
+		selector: &promptui.Select{Size: 15},
+		hosts:    make([]*sshHost, 31),
+	}
+	assert.Equal(t, 3, prompt.getPageCount())
+}
+
+func TestPromptDetailRows(t *testing.T) {
+	host := &sshHost{Alias: "dev", Host: "dev.example.com", Port: "22", User: "root"}
+	assert.Equal(t, 4, getPromptDetailRows(host))
+
+	host.Port = "2222"
+	host.ProxyJump = "gateway"
+	assert.Equal(t, 6, getPromptDetailRows(host))
+}
+
 func TestPromptStyleTemplates(t *testing.T) {
 	funcMap := template.FuncMap{}
 	for name, fn := range promptui.FuncMap {
