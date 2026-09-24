@@ -39,6 +39,7 @@ func TestInitUserConfigDoesNotLoadGlobalConfig(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".tssh.conf"),
 		[]byte("ConfigPath = /legacy/config\nPromptThemeLayout = table\n"), 0600))
