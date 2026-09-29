@@ -37,7 +37,7 @@ import (
 	"github.com/trzsz/promptui"
 )
 
-var promptCursorIcon = "🧨"
+var promptCursorIcon = "👉"
 var promptSelectedIcon = "🍺"
 
 const (
