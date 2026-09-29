@@ -274,27 +274,19 @@ func stdioForward(args *sshArgs, client SshClient, addr string) error {
 		return fmt.Errorf("stdio forwarding [%s] failed: %v", addr, err)
 	}
 
-	var wg sync.WaitGroup
-
-	wg.Go(func() {
-		_, _ = io.Copy(conn, os.Stdin)
+	stdin, stdout := os.Stdin, os.Stdout
+	// A terminal read may remain blocked after the remote end closes.
+	go func() {
+		_, _ = io.Copy(conn, stdin)
 
 		if cw, ok := conn.(interface{ CloseWrite() error }); ok {
 			_ = cw.CloseWrite()
 		}
-	})
+	}()
 
-	wg.Go(func() {
-		_, _ = io.Copy(os.Stdout, conn)
+	_, _ = io.Copy(stdout, conn)
 
-		if cr, ok := conn.(interface{ CloseRead() error }); ok {
-			_ = cr.CloseRead()
-		}
-	})
-
-	wg.Wait()
 	_ = conn.Close()
-	_ = os.Stdout.Close()
 	return nil
 }
 

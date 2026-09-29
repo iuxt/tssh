@@ -25,6 +25,7 @@ SOFTWARE.
 package tssh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -384,10 +385,9 @@ func (c *sshClientWrapper) NewSession() (SshSession, error) {
 
 func (c *sshClientWrapper) DialTimeout(network, addr string, timeout time.Duration) (conn net.Conn, err error) {
 	if timeout > 0 {
-		conn, err = doWithTimeout(func() (net.Conn, error) {
-			return c.client.Dial(network, addr)
-		}, timeout)
-		return
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return c.client.DialContext(ctx, network, addr)
 	} else {
 		return c.client.Dial(network, addr)
 	}

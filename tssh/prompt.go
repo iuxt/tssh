@@ -43,7 +43,7 @@ var promptSelectedIcon = "🍺"
 const (
 	defaultPromptPageSize = 10
 	defaultPromptWidth    = 80
-	promptHeaderRows      = 3 // help/search, keywords, and label
+	promptHeaderRows      = 4 // help/search, keywords, label, and list headings
 
 	keyCtrlB = '\x02'
 	keyCtrlC = '\x03'

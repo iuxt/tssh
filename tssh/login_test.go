@@ -28,6 +28,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/trzsz/ssh_config"
 )
 
 func TestParseDestination(t *testing.T) {
@@ -67,4 +69,22 @@ func TestParseDestination(t *testing.T) {
 	assertDestEqual("user@fe80::6358:bbae:26f8:7859", "user", "fe80::6358:bbae:26f8:7859", "")
 	assertDestEqual("[fe80::6358:bbae:26f8:7859]:1022", "", "fe80::6358:bbae:26f8:7859", "1022")
 	assertDestEqual("user@[fe80::6358:bbae:26f8:7859]:1022", "user", "fe80::6358:bbae:26f8:7859", "1022")
+}
+
+func TestProxyNoneInConfig(t *testing.T) {
+	previous := userConfig
+	defer func() { userConfig = previous }()
+	config, err := ssh_config.DecodeBytes([]byte("Host jump-none\n  ProxyJump none\nHost command-none\n  ProxyCommand none\n"))
+	require.NoError(t, err)
+	userConfig = &tsshConfig{config: config}
+
+	jump, err := getSshParam(&sshArgs{Destination: "jump-none"}, false)
+	require.NoError(t, err)
+	assert.Empty(t, jump.proxies)
+	assert.Empty(t, jump.command)
+
+	command, err := getSshParam(&sshArgs{Destination: "command-none"}, false)
+	require.NoError(t, err)
+	assert.Empty(t, command.proxies)
+	assert.Empty(t, command.command)
 }

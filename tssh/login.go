@@ -49,17 +49,18 @@ type proxyJump struct {
 }
 
 type sshParam struct {
-	args    *sshArgs
-	host    string
-	port    string
-	user    string
-	addr    string
-	proxies []string
-	command string
-	control bool
-	proxy   *proxyJump
-	ipv4    bool
-	ipv6    bool
+	args          *sshArgs
+	host          string
+	port          string
+	user          string
+	addr          string
+	proxies       []string
+	command       string
+	control       bool
+	proxy         *proxyJump
+	ipv4          bool
+	ipv6          bool
+	loginComplete atomic.Bool
 }
 
 func (p *sshParam) setNetworkAddressFamily(conn net.Conn) {
@@ -267,12 +268,18 @@ func getProxyParam(param *sshParam) {
 	}
 
 	proxyJump = getConfig(args.Destination, "ProxyJump")
+	if strings.EqualFold(proxyJump, "none") {
+		return
+	}
 	if proxyJump != "" {
 		param.proxies = strings.Split(proxyJump, ",")
 		return
 	}
 
 	proxyCommand = getConfig(args.Destination, "ProxyCommand")
+	if strings.EqualFold(proxyCommand, "none") {
+		return
+	}
 	if proxyCommand != "" {
 		param.command = proxyCommand
 		return
@@ -647,7 +654,11 @@ func sshLogin(param *sshParam, proxy *proxyJump) (SshClient, error) {
 	resetLogLevel := setupLogLevel(param.args)
 	defer resetLogLevel()
 
-	return tcpLogin(param, proxy)
+	client, err := tcpLogin(param, proxy)
+	if err == nil {
+		param.loginComplete.Store(true)
+	}
+	return client, err
 }
 
 func keepAlive(sshConn *sshConnection) {
@@ -735,6 +746,7 @@ func keepAlive(sshConn *sshConnection) {
 }
 
 func sshConnect(args *sshArgs) (*sshConnection, error) {
+	defer cleanupAfterLogin()
 	// init ssh param
 	param, err := getSshParam(args, false)
 	if err != nil {
@@ -755,7 +767,6 @@ func sshConnect(args *sshArgs) (*sshConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	sshLoginSuccess.Store(true)
 
 	sshConn := &sshConnection{
 		exitChan: make(chan int, 1),
@@ -769,9 +780,6 @@ func sshConnect(args *sshArgs) (*sshConnection, error) {
 	if !param.control {
 		keepAlive(sshConn)
 	}
-
-	//  cleanup
-	cleanupAfterLogin()
 
 	return sshConn, nil
 }

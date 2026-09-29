@@ -360,13 +360,24 @@ func (e *sshExpect) waitForPattern(pattern string, caseSends *caseSendList) (str
 		return "", err
 	}
 	var builder strings.Builder
+	out, errOut := e.out, e.err
 	for {
 		var buf []byte
+		var ok bool
 		select {
 		case <-e.ctx.Done():
 			return "", e.ctx.Err()
-		case buf = <-e.out:
-		case buf = <-e.err:
+		case buf, ok = <-out:
+			if !ok {
+				out = nil
+			}
+		case buf, ok = <-errOut:
+			if !ok {
+				errOut = nil
+			}
+		}
+		if out == nil && errOut == nil {
+			return "", io.EOF
 		}
 		if len(buf) == 0 {
 			continue

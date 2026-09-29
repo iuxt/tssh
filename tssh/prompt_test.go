@@ -57,7 +57,7 @@ func TestPromptShortcutsRenderInRightPanel(t *testing.T) {
 
 func TestCalculatePromptPageSize(t *testing.T) {
 	assert.Equal(t, defaultPromptPageSize, calculatePromptPageSize(0))
-	assert.Equal(t, 20, calculatePromptPageSize(24))
+	assert.Equal(t, 19, calculatePromptPageSize(24))
 	assert.Equal(t, 1, calculatePromptPageSize(4))
 }
 
@@ -78,7 +78,7 @@ func TestPromptTwoColumnLayout(t *testing.T) {
 
 	output := layout.render(hosts, 0)
 	lines := strings.Split(output, "\n")
-	require.Len(t, lines, 20)
+	require.Len(t, lines, 21)
 	for _, line := range lines {
 		assert.Equal(t, 100, ansi.StringWidth(line))
 	}
@@ -86,6 +86,42 @@ func TestPromptTwoColumnLayout(t *testing.T) {
 	assert.Contains(t, plain, "dev.example.com")
 	assert.Contains(t, plain, "SSH Details")
 	assert.Contains(t, plain, "Instructions")
+}
+
+func TestPromptHostColumnsStayAligned(t *testing.T) {
+	layout := newPromptLayout(80, 5)
+	hosts := []interface{}{
+		&sshHost{Alias: "dev", Host: "10.0.0.1", GroupLabels: "development"},
+		&sshHost{Alias: "production-europe-primary", Host: "192.168.100.22"},
+		&sshHost{Alias: "数据库", Host: "db.example.com"},
+		&sshHost{Alias: "production-europe-backup", Host: "192.168.100.22"},
+	}
+	lines := strings.Split(ansi.Strip(layout.render(hosts, 0)), "\n")
+	require.Len(t, lines, 6)
+	for _, line := range lines {
+		assert.Equal(t, 80, ansi.StringWidth(line))
+	}
+	column := func(line, value string) int {
+		index := strings.Index(line, value)
+		require.GreaterOrEqual(t, index, 0)
+		return ansi.StringWidth(line[:index])
+	}
+	addressColumn := column(lines[0], "IP / HOST")
+	assert.Equal(t, addressColumn, column(lines[1], "10.0.0.1"))
+	assert.Equal(t, addressColumn, column(lines[2], "192.168.100.22"))
+	assert.Equal(t, addressColumn, column(lines[3], "db.example.com"))
+	assert.Equal(t, addressColumn, column(lines[4], "192.168.100.22"))
+	assert.Contains(t, lines[2], "…")
+	assert.Contains(t, lines[4], "…")
+	assert.NotEqual(t, lines[2], lines[4])
+	assert.NotContains(t, lines[1], "development")
+}
+
+func TestPromptInstructionsFitInNarrowTerminal(t *testing.T) {
+	layout := newPromptLayout(60, 6)
+	output := ansi.Strip(layout.render([]interface{}{&sshHost{Alias: "dev", Host: "10.0.0.1"}}, 0))
+	assert.Contains(t, output, "Enter Connect")
+	assert.Contains(t, output, "Page down")
 }
 
 func TestPromptStyleTemplates(t *testing.T) {

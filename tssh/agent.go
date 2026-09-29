@@ -28,15 +28,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-)
-
-var (
-	agentOnce   sync.Once
-	agentClient agent.ExtendedAgent
 )
 
 func getAgentAddr(param *sshParam) (string, error) {
@@ -57,29 +51,25 @@ func getAgentAddr(param *sshParam) (string, error) {
 }
 
 func getAgentClient(param *sshParam) agent.ExtendedAgent {
-	agentOnce.Do(func() {
-		addr, err := getAgentAddr(param)
-		if err != nil {
-			warning("get agent addr failed: %v", err)
-			return
-		}
-		if addr == "" {
-			debug("ssh agent address is not set")
-			return
-		}
+	addr, err := getAgentAddr(param)
+	if err != nil {
+		warning("get agent addr failed: %v", err)
+		return nil
+	}
+	if addr == "" {
+		debug("ssh agent address is not set")
+		return nil
+	}
 
-		conn, err := dialAgent(addr)
-		if err != nil {
-			debug("dial ssh agent [%s] failed: %v", addr, err)
-			return
-		}
+	conn, err := dialAgent(addr)
+	if err != nil {
+		debug("dial ssh agent [%s] failed: %v", addr, err)
+		return nil
+	}
 
-		agentClient = agent.NewClient(conn)
-		debug("new ssh agent client [%s] success", addr)
-
-		addAfterLoginFunc(func() { _ = conn.Close(); agentClient = nil })
-	})
-	return agentClient
+	debug("new ssh agent client [%s] success", addr)
+	addAfterLoginFunc(func() { _ = conn.Close() })
+	return agent.NewClient(conn)
 }
 
 func forwardToRemote(client SshClient, addr string) error {

@@ -96,7 +96,7 @@ func getSendEnvs(args *sshArgs) ([]*sshEnv, error) {
 					debug("sending env: %s (matches rule: %s)", name, rule.pattern)
 					var value string
 					if pos >= 0 {
-						value = strings.TrimSpace(env[pos+1:])
+						value = env[pos+1:]
 					}
 					envs = append(envs, &sshEnv{name, value})
 				}
@@ -123,7 +123,7 @@ func getSetEnvs(args *sshArgs) ([]*sshEnv, error) {
 		if name == "" {
 			return nil, fmt.Errorf("invalid SetEnv: %s", token)
 		}
-		value := strings.TrimSpace(token[pos+1:])
+		value := token[pos+1:]
 		envs = append(envs, &sshEnv{name, value})
 	}
 	return envs, nil

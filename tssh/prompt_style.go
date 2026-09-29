@@ -55,15 +55,18 @@ func newPromptLayout(width, pageSize int) *promptLayout {
 		usableWidth = 2
 	}
 
-	leftWidth := usableWidth * 45 / 100
-	if usableWidth >= 50 && leftWidth < 24 {
-		leftWidth = 24
+	leftWidth := usableWidth * 56 / 100
+	if usableWidth >= 50 && leftWidth < 28 {
+		leftWidth = 28
 	}
 	if leftWidth < 1 {
 		leftWidth = 1
 	}
 	if leftWidth >= usableWidth {
 		leftWidth = usableWidth - 1
+	}
+	if usableWidth >= 55 && usableWidth-leftWidth < 30 {
+		leftWidth = usableWidth - 30
 	}
 
 	return &promptLayout{
@@ -90,30 +93,57 @@ func fitPromptText(value string, width int) string {
 	return value + strings.Repeat(" ", width-ansi.StringWidth(value))
 }
 
-func renderPromptHost(host *sshHost, active bool) string {
+func (l *promptLayout) hostColumnWidths() (int, int) {
+	// Reserve three cells for the cursor and two between the columns.
+	available := l.leftWidth - 5
+	if available < 2 {
+		return 1, 1
+	}
+	nameWidth := available * 55 / 100
+	if nameWidth < 12 {
+		nameWidth = 12
+	}
+	if nameWidth >= available {
+		nameWidth = available - 1
+	}
+	return nameWidth, available - nameWidth
+}
+
+func truncatePromptMiddle(value string, width int) string {
+	valueWidth := ansi.StringWidth(value)
+	if valueWidth <= width {
+		return value
+	}
+	if width < 4 {
+		return ansi.Truncate(value, width, "…")
+	}
+	firstWidth := width / 2
+	lastWidth := width - firstWidth - 1
+	return ansi.Truncate(value, firstWidth, "") + "…" +
+		ansi.TruncateLeft(value, valueWidth-lastWidth, "")
+}
+
+func (l *promptLayout) renderHostColumns(name, address, nameColor, addressColor string) string {
+	nameWidth, addressWidth := l.hostColumnWidths()
+	name = truncatePromptMiddle(name, nameWidth)
+	address = ansi.Truncate(address, addressWidth, "…")
+	name = promptColor(nameColor, name)
+	address = promptColor(addressColor, address)
+	return fitPromptText(name, nameWidth) + "  " + fitPromptText(address, addressWidth)
+}
+
+func (l *promptLayout) renderPromptHost(host *sshHost, active bool) string {
 	if host == nil {
 		return ""
 	}
 
 	prefix := "   "
-	alias := promptColor("36", host.Alias)
-	hostName := promptColor("35", host.Host)
-	group := promptColor("34", host.GroupLabels)
+	nameColor, addressColor := "36", "35"
 	if active {
 		prefix = promptColor("1;32", promptCursorIcon) + " "
-		alias = promptColor("1;36", host.Alias)
-		hostName = promptColor("1;35", host.Host)
-		group = promptColor("1;34", host.GroupLabels)
+		nameColor, addressColor = "1;36", "1;35"
 	}
-
-	line := prefix + alias
-	if host.Host != "" {
-		line += " (" + hostName + ")"
-	}
-	if host.GroupLabels != "" {
-		line += "  " + group
-	}
-	return line
+	return prefix + l.renderHostColumns(host.Alias, host.Host, nameColor, addressColor)
 }
 
 func promptDetailLine(label, value string) string {
@@ -129,7 +159,7 @@ func (l *promptLayout) renderDetails(host *sshHost) []string {
 		return lines
 	}
 	if l.showShortcuts.Load() {
-		shortcuts := []string{promptColor("1;34", "All Shortcuts")}
+		shortcuts := []string{}
 		for _, shortcut := range normalShortcuts {
 			keys := append([]string{}, shortcut.globalKeys...)
 			keys = append(keys, shortcut.nonSearchKeys...)
@@ -142,9 +172,6 @@ func (l *promptLayout) renderDetails(host *sshHost) []string {
 				break
 			}
 			lines[row] = promptColor("2", shortcut)
-			if row == 0 {
-				lines[row] = shortcut
-			}
 		}
 		return lines
 	}
@@ -162,7 +189,7 @@ func (l *promptLayout) renderDetails(host *sshHost) []string {
 		instructionStart = 0
 	}
 
-	details := []string{promptColor("1;34", "SSH Details")}
+	details := []string{}
 	if host == nil {
 		details = append(details, "Select a machine")
 	} else {
@@ -213,12 +240,20 @@ func (l *promptLayout) render(items []interface{}, active int) string {
 		activeHost, _ = items[active].(*sshHost)
 	}
 	rightLines := l.renderDetails(activeHost)
-	lines := make([]string, 0, l.pageSize)
+	lines := make([]string, 0, l.pageSize+1)
+	leftHeading := "   " + l.renderHostColumns("NAME", "IP / HOST", "2", "2")
+	rightHeading := "SSH Details"
+	if l.showShortcuts.Load() {
+		rightHeading = "All Shortcuts"
+	}
+	lines = append(lines,
+		fitPromptText(leftHeading, l.leftWidth)+promptColor("2", " │ ")+
+			fitPromptText(promptColor("1;34", rightHeading), l.rightWidth))
 	for row := 0; row < l.pageSize; row++ {
 		left := ""
 		if row < len(items) {
 			host, _ := items[row].(*sshHost)
-			left = renderPromptHost(host, row == active)
+			left = l.renderPromptHost(host, row == active)
 		}
 		lines = append(lines,
 			fitPromptText(left, l.leftWidth)+promptColor("2", " │ ")+fitPromptText(rightLines[row], l.rightWidth))

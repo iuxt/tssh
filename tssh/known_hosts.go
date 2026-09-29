@@ -33,7 +33,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
@@ -41,7 +40,6 @@ import (
 
 var acceptHostKeys []string
 var addHostKeyMutex sync.Mutex
-var sshLoginSuccess atomic.Bool
 
 func ensureNewline(file *os.File) error {
 	if _, err := file.Seek(-1, io.SeekEnd); err != nil {
@@ -75,7 +73,7 @@ func writeKnownHost(path, host string, key ssh.PublicKey) error {
 	return writeAll(file, []byte(line))
 }
 
-func addHostKey(path, host string, key ssh.PublicKey, ask bool) error {
+func addHostKey(path, host string, key ssh.PublicKey, ask, loginComplete bool) error {
 	addHostKeyMutex.Lock()
 	defer addHostKeyMutex.Unlock()
 	keyNormalizedLine := knownhosts.Line([]string{host}, key)
@@ -86,7 +84,7 @@ func addHostKey(path, host string, key ssh.PublicKey, ask bool) error {
 		return nil
 	}
 
-	if sshLoginSuccess.Load() {
+	if loginComplete {
 		warning("The public key of the remote server has changed after login")
 		return fmt.Errorf("host key changed")
 	}
@@ -191,8 +189,13 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 		return nil, nil, fmt.Errorf("new knownhosts failed: %v", err)
 	}
 
-	hostKeyCallback := func(host string, remote net.Addr, key ssh.PublicKey) error {
-		err := khdb.HostKeyCallback()(host, remote, key)
+	hostKeyName := param.addr
+	if alias := getOptionConfig(param.args, "HostKeyAlias"); alias != "" {
+		// Use the alias as the known_hosts identity even on nonstandard SSH ports.
+		hostKeyName = net.JoinHostPort(alias, "22")
+	}
+	hostKeyCallback := func(_ string, remote net.Addr, key ssh.PublicKey) error {
+		err := khdb.HostKeyCallback()(hostKeyName, remote, key)
 		if err == nil {
 			return nil
 		}
@@ -221,7 +224,7 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 			case "accept-new", "no", "off", "false":
 				ask = false
 			}
-			return addHostKey(primaryPath, host, key, ask)
+			return addHostKey(primaryPath, hostKeyName, key, ask, param.loginComplete.Load())
 		}
 		switch strictHostKeyChecking {
 		case "no", "off", "false":
@@ -231,5 +234,5 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 		}
 	}
 
-	return hostKeyCallback, khdb.HostKeyAlgorithms(param.addr), err
+	return hostKeyCallback, khdb.HostKeyAlgorithms(hostKeyName), err
 }
