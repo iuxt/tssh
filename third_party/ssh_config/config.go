@@ -432,6 +432,11 @@ func (c *Config) GetSplits(alias, key string) ([]string, error) {
 	if value == "" {
 		return []string{}, nil
 	}
+	if runtime.GOOS == "windows" && (strings.EqualFold(key, "UserKnownHostsFile") ||
+		strings.EqualFold(key, "GlobalKnownHostsFile")) {
+		// Preserve native Windows paths before the shell-style value is split.
+		value = strings.ReplaceAll(value, `\`, "/")
+	}
 	return shlex.Split(value)
 }
 

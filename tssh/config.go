@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -358,13 +359,22 @@ func getOptionConfig(args *sshArgs, option string) string {
 
 func getOptionConfigSplits(args *sshArgs, option string) []string {
 	if value := args.Option.get(option); value != "" {
-		values, err := shlex.Split(value)
+		values, err := splitOptionConfigValue(value, option, runtime.GOOS)
 		if err != nil {
 			warning("split option [%s] value [%s] failed: %v", option, value, err)
 		}
 		return values
 	}
 	return getConfigSplits(args.Destination, option)
+}
+
+func splitOptionConfigValue(value, option, goos string) ([]string, error) {
+	if goos == "windows" && (strings.EqualFold(option, "UserKnownHostsFile") ||
+		strings.EqualFold(option, "GlobalKnownHostsFile")) {
+		// shlex treats backslashes as escapes, but Windows paths use them as separators.
+		value = strings.ReplaceAll(value, `\`, "/")
+	}
+	return shlex.Split(value)
 }
 
 func getAllOptionConfig(args *sshArgs, option string) []string {

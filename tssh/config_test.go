@@ -27,10 +27,13 @@ package tssh
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trzsz/ssh_config"
 )
 
 func TestInitUserConfigDoesNotLoadGlobalConfig(t *testing.T) {
@@ -50,4 +53,29 @@ func TestInitUserConfigDoesNotLoadGlobalConfig(t *testing.T) {
 
 	require.NoError(t, initUserConfig("~/custom-config"))
 	assert.Equal(t, filepath.Join(home, "custom-config"), userConfig.configPath)
+}
+
+func TestSplitOptionConfigValueWindowsKnownHostsPaths(t *testing.T) {
+	paths, err := splitOptionConfigValue(`D:\a\tssh\known_hosts "C:\Program Files\ssh\known_hosts"`,
+		"UserKnownHostsFile", "windows")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"D:/a/tssh/known_hosts", "C:/Program Files/ssh/known_hosts"}, paths)
+
+	paths, err = splitOptionConfigValue(`D:\a\tssh\known_hosts`, "GlobalKnownHostsFile", "windows")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"D:/a/tssh/known_hosts"}, paths)
+}
+
+func TestWindowsKnownHostsPathFromConfig(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("requires native Windows path handling")
+	}
+	previous := userConfig
+	defer func() { userConfig = previous }()
+
+	config, err := ssh_config.Decode(strings.NewReader("Host test-host\n  UserKnownHostsFile C:\\Users\\test\\known_hosts\n"))
+	require.NoError(t, err)
+	userConfig = &tsshConfig{config: config}
+	args := &sshArgs{Destination: "test-host"}
+	assert.Equal(t, []string{"C:/Users/test/known_hosts"}, getOptionConfigSplits(args, "UserKnownHostsFile"))
 }
