@@ -34,6 +34,8 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 使用之前，需要配置好 `~/.tssh/config` ( Windows 是 `C:\Users\xxx\.tssh\config`, `xxx` 换成用户名 )。
 
+- 主配置默认统一读取 `~/.tssh/config`，不读取 `$XDG_CONFIG_HOME/tssh/tssh.conf`、`~/.config/tssh/tssh.conf` 或旧的 `~/.tssh.conf`。可使用 `tssh -F /path/to/config` 显式指定其他主配置文件。
+
 - 关于如何配置 `~/.tssh/config`，请参考 [openssh](https://manpages.debian.org/bookworm/openssh-client/ssh_config.5.en.html)，或参考 tssh wiki [SSH基本配置](https://github.com/trzsz/trzsz-ssh/wiki/SSH%E5%9F%BA%E6%9C%AC%E9%85%8D%E7%BD%AE)。
 
 - 直接无参数运行 `tssh` 命令就会打开登录界面，或者有除目标机器外的其他参数也会打开登录界面。

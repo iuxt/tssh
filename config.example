@@ -6,6 +6,8 @@
 #   ~/.tssh/config
 #   ~/.tssh/password
 # Use `tssh -F /path/to/config` to select a different host configuration file.
+# Global settings files ($XDG_CONFIG_HOME/tssh/tssh.conf,
+# ~/.config/tssh/tssh.conf, and ~/.tssh.conf) are not loaded.
 #
 # Recommended layout:
 #   - Put normal OpenSSH-compatible options in ~/.tssh/config, or in the file
