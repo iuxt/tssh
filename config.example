@@ -222,9 +222,9 @@ Host with-local-command
 # Secrets in ~/.tssh/password
 # -----------------------------------------------------------------------------
 #
-# Put this section in ~/.tssh/password. Keeping secrets out of
-# ~/.ssh/config avoids OpenSSH "Bad configuration option" errors and reduces
-# accidental exposure.
+# Put the examples in this section in ~/.tssh/password to keep secrets separate
+# from the main host configuration. OpenSSH does not recognize these secret
+# options, so do not put them in ~/.ssh/config.
 #
 # Prefer a password manager command below when possible. Plain text values
 # should only be kept in a file with restrictive permissions.
@@ -326,8 +326,9 @@ Host otp-numbered
 # Automated interaction
 # -----------------------------------------------------------------------------
 #
-# Use this when the server prompts before normal SSH authentication completes, or
-# when a legacy terminal/control-master path needs prompt automation.
+# Use Expect* options to respond to prompts after the remote shell or command
+# starts. Use CtrlExpect* options to handle prompts from the underlying OpenSSH
+# process when establishing a control-master connection.
 #
 # Pattern values use wildcard matching: `*` matches any text and `?` matches
 # one character. SendText values need `\r` when you want to send Enter.
@@ -427,27 +428,31 @@ Host *
     StrictHostKeyChecking ask
     UserKnownHostsFile ~/.ssh/known_hosts
 
-    # trz/tsz 支持默认开启：trz 上传，tsz 下载；服务器需要安装 trzsz。
+    # 启用 trz/tsz 文件传输（默认开启）。服务器需安装 trzsz，本地无需额外安装。
+    # 登录服务器后，执行 trz 上传文件，执行 tsz <文件路径> 下载文件。
     EnableTrzsz yes
 
-    # rz/sz 支持默认开启；服务器和本地均需要安装 lrzsz。
+    # 启用 rz/sz 文件传输（默认开启）。服务器和本地均需安装 lrzsz。
+    # 登录服务器后，执行 rz 上传文件，执行 sz <文件路径> 下载文件。
     EnableZmodem yes
 
-    # 自动识别拖入终端的本地文件并上传；程序默认关闭，此处显式开启。
+    # 启用拖拽上传（默认关闭）。开启后，将本地文件拖入终端即可上传。
     EnableDragFile yes
 
-    # 拖拽时在服务器执行 trz；拖拽目录会自动追加 -d。
-    # 程序默认命令是 rz；若改回 rz，需要保持 EnableZmodem yes。
+    # 指定拖拽上传时在服务器上执行的命令，默认为 rz。
+    # 此处使用 trz，需启用 EnableTrzsz；拖入目录时会自动执行 trz -d。
+    # 如需使用 rz，请将此项设为 rz，并启用 EnableZmodem。
     DragFileUploadCommand trz
 
-    # trz/rz 上传文件选择框的本地初始目录，不是服务器上的保存目录。
+    # 使用 trz/rz 上传时，文件选择框默认打开的本地目录。
     DefaultUploadPath ~/Downloads
 
-    # tsz/sz 直接保存到此本地目录，不再弹出目录选择框；请确保目录存在。
-    # 注释掉此项可在每次下载时选择保存目录。
+    # 使用 tsz/sz 下载时，文件会自动保存到此本地目录，请确保目录已存在。
+    # 不设置此项时，每次下载都会弹出目录选择框。
     DefaultDownloadPath ~/Downloads
 
-    # trz/tsz 进度条的渐变颜色：两个不带 # 的十六进制颜色，以空格分隔。
+    # 设置 trz/tsz 进度条的渐变颜色，填写两个以空格分隔的六位十六进制颜色值。
+    # 例如下方的 B14FFF 和 00FFA3，颜色值前不加 #。
     ProgressColorPair B14FFF 00FFA3
 
     # Allow remote applications to copy text into the local clipboard via OSC52.
