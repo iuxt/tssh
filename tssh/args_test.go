@@ -83,6 +83,8 @@ func TestSshArgs(t *testing.T) {
 		sshArgs{Option: sshOption{map[string][]string{"remotecommand": {"none"}, "serveraliveinterval": {"5"}}}})
 
 	assertArgsEqual("--debug", sshArgs{Debug: true})
+	assertArgsEqual("--dragfile", sshArgs{DragFile: true})
+	assertArgsEqual("--tracelog", sshArgs{TraceLog: true})
 
 	assertArgsEqual("dest", sshArgs{Destination: "dest"})
 	assertArgsEqual("dest cmd", sshArgs{Destination: "dest", Command: "cmd"})
@@ -115,8 +117,6 @@ func TestSshArgs(t *testing.T) {
 	_ = assertArgsError("--dns 8.8.8.8", "unknown argument")
 	_ = assertArgsError("--list-hosts", "unknown argument")
 	_ = assertArgsError("--reconnect", "unknown argument")
-	_ = assertArgsError("--dragfile", "unknown argument")
-	_ = assertArgsError("--tracelog", "unknown argument")
 	_ = assertArgsError("--relay", "unknown argument")
 	_ = assertArgsError("--client", "unknown argument")
 	_ = assertArgsError("--install-trzsz", "unknown argument")

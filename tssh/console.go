@@ -60,14 +60,18 @@ type menuModel struct {
 }
 
 func initMenuModel(menuWidth, screenWidth int) *menuModel {
-	bgColor := lipgloss.Color("#1b1b32")
-	titleColor := lipgloss.Color("#A6E3A1")
-	footerColor := lipgloss.Color("#6C7086")
+	if screenWidth <= 0 {
+		screenWidth = defaultPromptWidth
+	}
+	menuWidth = max(1, min(menuWidth, screenWidth))
+	bgColor := lipgloss.Color("#101820")
+	titleColor := lipgloss.Color("#67E8F9")
+	footerColor := lipgloss.Color("#94A3B8")
 	itemNormalFG := lipgloss.Color("#CDD6F4")
 	itemSelectedFG := lipgloss.Color("#FFFCE1")
-	itemSelectedBG := lipgloss.Color("#433C7C")
+	itemSelectedBG := lipgloss.Color("#164E63")
 	separatorColor := lipgloss.Color("#31354A")
-	highlightBarColor := lipgloss.Color("#FFD700")
+	highlightBarColor := lipgloss.Color("#67E8F9")
 	return &menuModel{
 		cursor:          0,
 		menuWidth:       menuWidth,
@@ -89,7 +93,11 @@ func (m *menuModel) Init() tea.Cmd {
 
 func (m *menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.WindowSizeMsg:
+		resized := initMenuModel(min(msg.Width, 60), msg.Width)
+		resized.items, resized.cursor, resized.quitting = m.items, m.cursor, m.quitting
+		*m = *resized
+	case tea.KeyPressMsg:
 		switch s := msg.String(); s {
 		case "ctrl+c", "esc", "q":
 			m.quitting = true
@@ -125,11 +133,11 @@ func (m *menuModel) View() tea.View {
 	}
 	var builder strings.Builder
 	m.writeLine(&builder, m.renderBlankLine())
-	m.writeLine(&builder, m.titleStyle.Render(getText("console/title")))
+	m.writeLine(&builder, m.titleStyle.Render(fitPromptText(getText("console/title"), m.menuWidth)))
 	m.writeLine(&builder, m.renderBlankLine())
 	m.writeLine(&builder, m.renderSeparator())
 	m.renderMenuItems(&builder)
-	m.writeLine(&builder, m.footerStyle.Render(getText("console/notes")))
+	m.writeLine(&builder, m.footerStyle.Render(fitPromptText(getText("console/notes"), m.menuWidth)))
 	builder.WriteString(m.backgroundStyle.Render(m.renderBlankLine()))
 	return tea.NewView(builder.String())
 }
@@ -143,9 +151,9 @@ func (m *menuModel) renderMenuItems(builder *strings.Builder) {
 		} else {
 			linePrefix, textStyle = m.normalItemStyle.Render("  "), m.normalItemStyle
 		}
-		blankLine := linePrefix + textStyle.Render(strings.Repeat(" ", m.menuWidth-2))
+		blankLine := linePrefix + textStyle.Render(strings.Repeat(" ", max(0, m.menuWidth-2)))
 		m.writeLine(builder, blankLine)
-		m.writeLine(builder, linePrefix+textStyle.Width(m.menuWidth-2).Render(item.label))
+		m.writeLine(builder, linePrefix+textStyle.Render(fitPromptText(item.label, max(0, m.menuWidth-2))))
 		m.writeLine(builder, blankLine)
 		m.writeLine(builder, m.renderSeparator())
 	}
@@ -208,7 +216,7 @@ func runConsole(escapeChar byte, writer io.WriteCloser, sshConn *sshConnection) 
 		exiting.Store(true)
 		go func() {
 			<-quitted
-			sshConn.forceExit(kExitCodeConsoleKill, fmt.Sprintf("Exit due to user actions in the console or entered the ssh escape sequences ( %s. )", char))
+			sshConn.forceExit(kExitCodeConsoleKill, fmt.Sprintf("已通过会话控制台或 SSH 转义序列（%s.）断开连接", char))
 		}()
 		model.quitting = true
 		return model, tea.Quit
@@ -227,7 +235,7 @@ func runConsole(escapeChar byte, writer io.WriteCloser, sshConn *sshConnection) 
 
 	p := tea.NewProgram(model, append(teaOpts, tea.WithOutput(os.Stderr))...)
 	if _, err := p.Run(); err != nil {
-		warning("run escape console failed: %v", err)
+		warning("打开会话控制台失败：%v", err)
 	}
 
 	if !exiting.Load() {

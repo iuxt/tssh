@@ -24,14 +24,12 @@ SOFTWARE.
 
 package tssh
 
-var english = map[string]string{
-	"console/title":     "Tssh Console",
-	"console/send_char": "Send the escape character '{0}' ( {0} : Enter '{0}' )",
-	"console/suspend":   "Suspend the current SSH process ( ^Z : Ctrl + Z )",
-	"console/terminate": "Terminate the current SSH session ( . : Exit / Kill )",
-	"console/notes":     "↑/↓/j/k Move • Enter Select • q Quit",
+var simplifiedChinese = map[string]string{
+	"console/title":     "tssh 会话控制台",
+	"console/send_char": "发送转义字符「{0}」  ·  {0}",
+	"console/suspend":   "暂停当前 SSH 进程  ·  Ctrl+Z",
+	"console/terminate": "断开当前 SSH 会话  ·  .",
+	"console/notes":     "↑/↓/j/k 选择 · Enter 确认 · q/Esc 返回",
 }
 
-func getText(key string) string {
-	return english[key]
-}
+func getText(key string) string { return simplifiedChinese[key] }

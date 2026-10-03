@@ -42,3 +42,19 @@ func TestDefault(t *testing.T) {
 		t.Errorf("Default(%q): got %v, want ''", "notfound", v)
 	}
 }
+
+func TestDefaultsSnapshot(t *testing.T) {
+	snapshot := Defaults()
+	if len(snapshot) != len(defaults) {
+		t.Fatalf("missing defaults: %d != %d", len(snapshot), len(defaults))
+	}
+	for key, value := range snapshot {
+		if value != Default(key) {
+			t.Errorf("default mismatch for %s", key)
+		}
+	}
+	snapshot["port"] = "12345"
+	if Default("Port") != "22" {
+		t.Fatal("snapshot changed registered defaults")
+	}
+}

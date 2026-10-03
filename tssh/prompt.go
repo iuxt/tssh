@@ -25,473 +25,266 @@ SOFTWARE.
 package tssh
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
-	"reflect"
 	"strings"
 	"time"
+	"unicode"
 
-	"github.com/chzyer/readline"
-	"github.com/trzsz/promptui"
+	tea "charm.land/bubbletea/v2"
 )
 
-var promptCursorIcon = "👉"
-var promptSelectedIcon = "🍺"
+var promptCursorIcon = "›"
+var promptSelectedIcon = "✓"
 
 const (
 	defaultPromptPageSize = 10
 	defaultPromptWidth    = 80
-	promptHeaderRows      = 4 // help/search, keywords, label, and list headings
-
-	keyCtrlB = '\x02'
-	keyCtrlC = '\x03'
-	keyCtrlD = '\x04'
-	keyCtrlE = '\x05'
-	keyCtrlF = '\x06'
-	keyCtrlH = '\x08'
-	keyCtrlJ = '\x0a'
-	keyCtrlK = '\x0b'
-	keyCtrlL = '\x0c'
-	keyCtrlQ = '\x11'
-	keyCtrlU = '\x15'
-	keyEnter = '\x0d'
-	keyESC   = '\x1b'
+	promptChromeRows      = 7
 )
 
+// sshPrompt owns selection and search state; rendering lives in prompt_style.go.
 type sshPrompt struct {
-	selector      *promptui.Select
-	layout        *promptLayout
-	pipeOut       io.WriteCloser
-	hosts         []*sshHost
-	showShortcuts bool
-	search        bool
-	quit          bool
+	hosts                 []*sshHost
+	visible               []*sshHost
+	cursor                int
+	helpOffset            int
+	detailOffset          int
+	detailFocus           bool
+	config                *tsshConfig
+	detailCache           map[*sshHost][]promptConfigEntry
+	width, height         int
+	keywords, query       string
+	search, showShortcuts bool
+	selected              *sshHost
+	quit                  bool
 }
 
-type bellFilter struct {
-	writer io.Writer
+func newSSHPrompt(hosts []*sshHost, keywords string) *sshPrompt {
+	p := &sshPrompt{hosts: hosts, keywords: keywords, width: defaultPromptWidth,
+		height: defaultPromptPageSize + promptChromeRows}
+	p.filterHosts()
+	return p
 }
 
-func (b *bellFilter) Write(p []byte) (int, error) {
-	if len(p) == 1 && p[0] == readline.CharBell {
-		return 1, nil
-	}
-	return b.writer.Write(p)
-}
+func (p *sshPrompt) Init() tea.Cmd { return nil }
 
-func (b *bellFilter) Close() error {
-	return nil
-}
-
-type sshShortcuts struct {
-	actionName    string
-	globalKeys    []string
-	searchKeys    []string
-	nonSearchKeys []string
-}
-
-var normalShortcuts = []sshShortcuts{
-	{actionName: "Confirm  ", globalKeys: []string{"Enter"}, nonSearchKeys: nil},
-	{actionName: "Quit/Exit", globalKeys: []string{"Ctrl+C", "Ctrl+Q"}, nonSearchKeys: []string{"q", "Q"}},
-	{actionName: "Move Prev", globalKeys: []string{"Ctrl+K", "Shift+Tab", "↑"}, nonSearchKeys: []string{"k", "K"}},
-	{actionName: "Move Next", globalKeys: []string{"Ctrl+J", "Tab      ", "↓"}, nonSearchKeys: []string{"j", "J"}},
-	{actionName: "Page   Up", globalKeys: []string{"Ctrl+H", "Ctrl+U", "Ctrl+B", "PageUp  ", "←"}, nonSearchKeys: []string{"h", "H", "u", "U", "b", "B"}},
-	{actionName: "Page Down", globalKeys: []string{"Ctrl+L", "Ctrl+D", "Ctrl+F", "PageDown", "→"}, nonSearchKeys: []string{"l", "L", "d", "D", "f", "F"}},
-	{actionName: "Goto Home", globalKeys: []string{"Home"}, nonSearchKeys: []string{"g"}},
-	{actionName: "Goto  End", globalKeys: []string{"End "}, nonSearchKeys: []string{"G"}},
-	{actionName: "EraseKeys", globalKeys: []string{"Ctrl+E"}, nonSearchKeys: []string{"e", "E"}},
-	{actionName: "TglSearch", globalKeys: []string{"/"}, searchKeys: []string{"Esc", "Enter"}},
-	{actionName: "Tgl  Help", globalKeys: []string{"?"}},
-}
-
-func (p *sshPrompt) getShortcuts() []string {
-	// Navigation help is permanently shown in the right-hand panel.
-	p.selector.HideHelp = true
-	if p.layout != nil {
-		p.layout.showShortcuts.Store(p.showShortcuts)
-	}
-	return nil
-}
-
-func (p *sshPrompt) getPageCount() int {
-	pageSize := p.selector.Size
-	if pageSize <= 0 {
-		pageSize = defaultPromptPageSize
-	}
-	return (len(p.hosts)-1)/pageSize + 1
-}
-
-func calculatePromptPageSize(terminalHeight int) int {
-	if terminalHeight <= 0 {
+func calculatePromptPageSize(height int) int {
+	if height <= 0 {
 		return defaultPromptPageSize
 	}
-
-	// Keep one row unused because promptui terminates every rendered row with a
-	// newline. This prevents the terminal from scrolling when the last row is
-	// drawn.
-	pageSize := terminalHeight - promptHeaderRows - 1
-	if pageSize < 1 {
-		return 1
-	}
-	return pageSize
+	return max(1, height-promptChromeRows)
 }
 
-func getPromptScreenSize() (int, int) {
-	width, height, err := getTerminalSize()
-	if err != nil {
-		return defaultPromptWidth, defaultPromptPageSize
-	}
-	return width, calculatePromptPageSize(height)
-}
+func (p *sshPrompt) pageSize() int { return calculatePromptPageSize(p.height) }
 
-func (p *sshPrompt) userQuit(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
+func (p *sshPrompt) currentHost() *sshHost {
+	if p.cursor < 0 || p.cursor >= len(p.visible) {
+		return nil
 	}
-	switch buf[0] {
-	case keyCtrlC, keyCtrlQ:
-		return true
-	case 'q', 'Q':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) movePrev(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'A', 'Z': // ↑Arrow-Up Shift-Tab
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlK:
-		return true
-	case 'k', 'K':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) moveNext(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'B': // ↓Arrow-Down
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case '\t', keyCtrlJ:
-		return true
-	case 'j', 'J':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) pageUp(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'D': // ←Arrow-Left
-			return true
-		}
-	}
-	if len(buf) == 4 && buf[0] == '\x1b' && buf[1] == '\x5b' && buf[3] == '~' {
-		switch buf[2] {
-		case '5': // PageUp
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlH, keyCtrlU, keyCtrlB:
-		return true
-	case 'h', 'H', 'u', 'U', 'b', 'B':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) pageDown(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'C': // →Arrow-Right
-			return true
-		}
-	}
-	if len(buf) == 4 && buf[0] == '\x1b' && buf[1] == '\x5b' && buf[3] == '~' {
-		switch buf[2] {
-		case '6': // PageDown
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlL, keyCtrlD, keyCtrlF:
-		return true
-	case 'l', 'L', 'd', 'D', 'f', 'F':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) gotoHome(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'H': // Home
-			return true
-		}
-	}
-	if len(buf) == 4 && buf[0] == '\x1b' && buf[1] == '\x5b' && buf[3] == '~' {
-		switch buf[2] {
-		case '1': // Fn-Arrow-Left
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case 'g':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) gotoEnd(buf []byte) bool {
-	if len(buf) == 3 && buf[0] == '\x1b' && buf[1] == '\x5b' {
-		switch buf[2] {
-		case 'F': // End
-			return true
-		}
-	}
-	if len(buf) == 4 && buf[0] == '\x1b' && buf[1] == '\x5b' && buf[3] == '~' {
-		switch buf[2] {
-		case '4': // Fn-Arrow-Right
-			return true
-		}
-	}
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case 'G':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) toggleSearch(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case '/':
-		return true
-	case keyESC:
-		return p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) toggleShortcuts(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case '?':
-		return true
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) addKeywords(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyEnter:
-		return p.search && p.selector.GetVisibleSize() > 0
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) eraseKeywords(buf []byte) bool {
-	if len(buf) != 1 {
-		return false
-	}
-	switch buf[0] {
-	case keyCtrlE:
-		return true
-	case 'e', 'E':
-		return !p.search
-	default:
-		return false
-	}
-}
-
-func (p *sshPrompt) userConfirm(buf []byte) bool {
-	return len(buf) == 1 && buf[0] == keyEnter && !p.search
-}
-
-func (p *sshPrompt) wrapStdin() {
-	defer func() {
-		_ = p.pipeOut.Close()
-		_ = p.selector.Stdin.Close()
-	}()
-	buffer := make([]byte, 100)
-	for {
-		n, err := os.Stdin.Read(buffer)
-		buf := buffer[:n]
-		switch {
-		case err != nil || p.userQuit(buf):
-			p.quit = true
-			return
-		case p.movePrev(buf):
-			buf = []byte{readline.CharPrev}
-		case p.moveNext(buf):
-			buf = []byte{readline.CharNext}
-		case p.pageUp(buf):
-			buf = []byte{readline.CharBackward}
-		case p.pageDown(buf):
-			buf = []byte{readline.CharForward}
-		case p.gotoHome(buf):
-			buf = bytes.Repeat([]byte{readline.CharBackward}, p.getPageCount())
-		case p.gotoEnd(buf):
-			buf = bytes.Repeat([]byte{readline.CharForward}, p.getPageCount())
-		case p.toggleSearch(buf):
-			p.search = !p.search
-			buf = []byte{'/'}
-		case p.toggleShortcuts(buf):
-			p.showShortcuts = !p.showShortcuts
-			buf = []byte{promptui.KeyRefresh}
-		case p.addKeywords(buf):
-			p.search = false
-			buf = []byte{promptui.KeySoftEnter}
-		case p.eraseKeywords(buf):
-			p.search = false
-			buf = []byte{promptui.KeyCtrlE}
-		case p.userConfirm(buf):
-			_, _ = p.pipeOut.Write([]byte{readline.CharEnter})
-			return
-		case len(buf) == 1 && buf[0] == '\x00':
-			// avoid Ctrl+Space causing quit unexpectedly
-			buf = []byte{promptui.KeyRefresh}
-		}
-		p.selector.Shortcuts = p.getShortcuts()
-		_, _ = p.pipeOut.Write(buf)
-	}
+	return p.visible[p.cursor]
 }
 
 func matchHost(h *sshHost, keywords []string) bool {
-	host := strings.ToLower(h.Host)
-	alias := strings.ToLower(h.Alias)
-	labels := strings.ToLower(h.GroupLabels)
+	host, alias, labels := strings.ToLower(h.Host), strings.ToLower(h.Alias), strings.ToLower(h.GroupLabels)
 	for _, keyword := range keywords {
-		if !strings.Contains(host, keyword) &&
-			!strings.Contains(alias, keyword) &&
-			!strings.Contains(labels, keyword) {
+		if !strings.Contains(host, keyword) && !strings.Contains(alias, keyword) && !strings.Contains(labels, keyword) {
 			return false
 		}
 	}
 	return true
 }
 
+func (p *sshPrompt) filterHosts() {
+	keywords := strings.Fields(strings.ToLower(p.keywords + " " + p.query))
+	p.visible = nil
+	for _, host := range p.hosts {
+		if matchHost(host, keywords) {
+			p.visible = append(p.visible, host)
+		}
+	}
+	p.cursor, p.detailOffset = 0, 0
+}
+
+func (p *sshPrompt) move(offset int) {
+	if p.showShortcuts {
+		p.helpOffset = max(0, min(p.helpOffset+offset, len(promptHelp(p.width))-p.pageSize()))
+		return
+	}
+	if p.detailFocus {
+		p.detailOffset = max(0, min(p.detailOffset+offset, len(p.detailLines())-p.pageSize()))
+		return
+	}
+	previous := p.cursor
+	p.cursor = max(0, min(p.cursor+offset, len(p.visible)-1))
+	if previous != p.cursor {
+		p.detailOffset = 0
+	}
+}
+
+func (p *sshPrompt) jump(end bool) {
+	if p.showShortcuts {
+		p.helpOffset = 0
+		if end {
+			p.helpOffset = max(0, len(promptHelp(p.width))-p.pageSize())
+		}
+	} else if p.detailFocus {
+		p.detailOffset = 0
+		if end {
+			p.detailOffset = max(0, len(p.detailLines())-p.pageSize())
+		}
+	} else {
+		p.cursor, p.detailOffset = 0, 0
+		if end {
+			p.cursor = max(0, len(p.visible)-1)
+		}
+	}
+}
+
+func (p *sshPrompt) clearSearch() {
+	p.search, p.keywords, p.query = false, "", ""
+	p.filterHosts()
+}
+
+func (p *sshPrompt) toggleSearch() {
+	p.detailFocus = false
+	p.search = !p.search
+	p.query = ""
+	p.filterHosts()
+}
+
+func (p *sshPrompt) appendQuery(text string) {
+	// Pasted newlines are search separators, never actions or terminal controls.
+	p.query += strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, text)
+	p.filterHosts()
+}
+
+func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		p.width, p.height = max(1, msg.Width), max(1, msg.Height)
+	case tea.PasteMsg:
+		if p.search {
+			p.appendQuery(msg.Content)
+		}
+	case tea.KeyPressMsg:
+		key := msg.String()
+		switch key {
+		case "ctrl+c", "ctrl+q":
+			p.quit = true
+			return p, tea.Quit
+		case "up", "shift+tab", "ctrl+k":
+			p.move(-1)
+		case "down", "tab", "ctrl+j":
+			p.move(1)
+		case "left", "pgup", "ctrl+h", "ctrl+u", "ctrl+b":
+			p.move(-p.pageSize())
+		case "right", "pgdown", "ctrl+l", "ctrl+d", "ctrl+f":
+			p.move(p.pageSize())
+		case "home":
+			p.jump(false)
+		case "end":
+			p.jump(true)
+		case "f2":
+			if !p.showShortcuts {
+				p.detailFocus = !p.detailFocus
+			}
+		case "ctrl+e":
+			p.clearSearch()
+		case "/":
+			p.toggleSearch()
+		case "?":
+			p.showShortcuts = !p.showShortcuts
+		case "esc":
+			if p.showShortcuts {
+				p.showShortcuts = false
+			} else if p.detailFocus {
+				p.detailFocus = false
+			} else if p.search {
+				p.toggleSearch()
+			}
+		case "enter":
+			if p.showShortcuts {
+				break
+			}
+			if p.currentHost() == nil {
+				break
+			}
+			if p.search {
+				p.keywords = strings.TrimSpace(p.keywords + " " + p.query)
+				p.query, p.search = "", false
+			} else {
+				p.selected = p.currentHost()
+				return p, tea.Quit
+			}
+		default:
+			if p.search {
+				if key == "backspace" {
+					chars := []rune(p.query)
+					if len(chars) > 0 {
+						p.query = string(chars[:len(chars)-1])
+						p.filterHosts()
+					}
+				} else if msg.Text != "" {
+					p.appendQuery(msg.Text)
+				}
+			} else {
+				switch key {
+				case "q", "Q":
+					p.quit = true
+					return p, tea.Quit
+				case "k", "K":
+					p.move(-1)
+				case "j", "J":
+					p.move(1)
+				case "h", "H", "u", "U", "b", "B":
+					p.move(-p.pageSize())
+				case "l", "L", "d", "D", "f", "F":
+					p.move(p.pageSize())
+				case "g":
+					p.jump(false)
+				case "G":
+					p.jump(true)
+				case "e", "E":
+					p.clearSearch()
+				}
+			}
+		}
+	}
+	return p, nil
+}
+
 func chooseAlias(keywords string) (string, bool, error) {
+	// Keep the stty fallback for older Windows terminals, whose custom reader
+	// cannot be detected as a TTY by Bubble Tea.
 	if state, _ := makeStdinRaw(); state != nil {
 		defer resetStdin(state)
 	}
-
-	hosts := getAllHosts()
-
-	searcher := func(input string, index int) bool {
-		return matchHost(hosts[index], strings.Fields(strings.ToLower(input)))
-	}
-
-	style := getPromptStyle()
-	funcMap := promptui.FuncMap
-	funcMap["getExConfig"] = getExConfig
-	funcMap["hasField"] = func(obj any, field string) bool {
-		v := reflect.ValueOf(obj)
-		if v.Kind() == reflect.Pointer {
-			v = v.Elem()
-		}
-		return v.FieldByName(field).IsValid()
-	}
-
-	pipeIn, pipeOut := io.Pipe()
-	promptWidth, promptPageSize := getPromptScreenSize()
-	layout := newPromptLayout(promptWidth, promptPageSize)
-	prompt := sshPrompt{
-		selector: &promptui.Select{
-			Label: "SSH Alias",
-			Items: hosts,
-			Templates: &promptui.SelectTemplates{
-				Help:          style.Help,
-				Label:         style.Label,
-				Active:        style.Active,
-				Inactive:      style.Inactive,
-				Details:       style.Details,
-				Shortcuts:     style.Shortcuts,
-				ItemsRenderer: layout.render,
-				DetailsRenderer: func(any) string {
-					return ""
-				},
-				FuncMap: funcMap,
-			},
-			Size:         promptPageSize,
-			Searcher:     searcher,
-			Stdin:        pipeIn,
-			Stdout:       &bellFilter{os.Stderr},
-			HideHelp:     true,
-			HideSelected: true,
-			Keywords:     keywords,
-		},
-		layout:  layout,
-		pipeOut: pipeOut,
-		hosts:   hosts,
-	}
-
+	prompt := newSSHPrompt(getAllHosts(), keywords)
+	prompt.config = userConfig
 	if enableDebugLogging && tmuxDebugPaneWriter == nil {
 		enableDebugLogging = false
 		defer func() { enableDebugLogging = true }()
 	}
-
-	go prompt.wrapStdin()
-
-	idx, _, err := prompt.selector.Run()
-	if err != nil {
-		return "", prompt.quit, fmt.Errorf("prompt choose alias failed: %v", err)
+	opts, cancelReader := newTeaOptions(nil)
+	defer cancelReader()
+	program := tea.NewProgram(prompt, append(opts, tea.WithOutput(os.Stderr))...)
+	if _, err := program.Run(); err != nil {
+		return "", prompt.quit, fmt.Errorf("打开主机选择界面失败：%w", err)
 	}
-	if prompt.quit {
+	if prompt.quit || prompt.selected == nil {
 		return "", true, nil
 	}
-
-	selectedHost := hosts[idx]
-	fmt.Fprintf(os.Stderr, "\033[0;32m%s %s\033[0m\r\n", promptSelectedIcon, selectedHost.Alias)
-	return selectedHost.Alias, false, nil
+	fmt.Fprintf(os.Stderr, "%s 正在连接 %s…\r\n", promptSelectedIcon, prompt.selected.Alias)
+	return prompt.selected.Alias, false, nil
 }
 
 func predictDestination(dest string) (string, bool, error) {

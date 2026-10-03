@@ -8,52 +8,12 @@
 # Use `tssh -F /path/to/config` to select a different host configuration file.
 #
 # Recommended layout:
-#   - Put normal OpenSSH-compatible options in ~/.ssh/config or ~/.tssh/config.
+#   - Put normal OpenSSH-compatible options in ~/.tssh/config, or in the file
+#     selected with `tssh -F`. ~/.ssh/config is not loaded automatically.
 #   - Put tssh-specific options and secrets in ~/.tssh/password.
 #   - Write configuration directives directly as `Key Value`. For a secret
 #     containing `#`, use `Key=Value`; see the password example below.
 #
-# -----------------------------------------------------------------------------
-# Base defaults
-# -----------------------------------------------------------------------------
-#
-# This block applies to every host unless a later, more specific Host block
-# overrides the option.
-
-Host *
-    User iuxt
-    Port 22
-    ServerAliveInterval 30
-    ServerAliveCountMax 3
-    ConnectTimeout 10
-    LogLevel ERROR
-    AddressFamily any
-
-    # Public-key authentication.
-    PubkeyAuthentication yes
-    IdentitiesOnly yes
-    IdentityFile ~/.ssh/id_ed25519
-
-    # Agent forwarding. Enable only for hosts you trust.
-    ForwardAgent no
-    IdentityAgent $SSH_AUTH_SOCK
-
-    # Host key checking.
-    StrictHostKeyChecking ask
-    UserKnownHostsFile ~/.ssh/known_hosts
-
-    # tssh transfer integration.
-    EnableZmodem yes
-    EnableOSC52 yes
-    DefaultUploadPath ~/Downloads
-    DefaultDownloadPath ~/Downloads
-    ProgressColorPair 2,4
-
-    # Console escape. Set ConsoleEscapeTime to 0 to disable tssh console escape.
-    EscapeChar ~
-    ConsoleEscapeTime 1
-
-
 # -----------------------------------------------------------------------------
 # Basic hosts
 # -----------------------------------------------------------------------------
@@ -367,8 +327,8 @@ Host otp-numbered
 # Use this when the server prompts before normal SSH authentication completes, or
 # when a legacy terminal/control-master path needs prompt automation.
 #
-# Pattern values are regular expressions. SendText values need `\r` when you
-# want to send Enter.
+# Pattern values use wildcard matching: `*` matches any text and `?` matches
+# one character. SendText values need `\r` when you want to send Enter.
 
 Host expect-password
     HostName expect.example.com
@@ -433,3 +393,64 @@ Host my-server
     IdentityFile ~/.ssh/id_ed25519
     GroupLabels personal
     EnableOSC52 yes
+
+
+# -----------------------------------------------------------------------------
+# Base defaults (keep this block after the specific Host blocks)
+# -----------------------------------------------------------------------------
+#
+# SSH configuration uses the first matching value for each single-value option.
+# Put specific hosts first so their User, Port, and other settings take priority.
+# IdentityFile is cumulative: matching blocks can add multiple identity files.
+
+Host *
+    User iuxt
+    Port 22
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    ConnectTimeout 10
+    LogLevel ERROR
+    AddressFamily any
+
+    # Public-key authentication.
+    PubkeyAuthentication yes
+    IdentitiesOnly yes
+    IdentityFile ~/.ssh/id_ed25519
+
+    # Agent forwarding. Enable only for hosts you trust.
+    ForwardAgent no
+    IdentityAgent $SSH_AUTH_SOCK
+
+    # Host key checking.
+    StrictHostKeyChecking ask
+    UserKnownHostsFile ~/.ssh/known_hosts
+
+    # trz/tsz 支持默认开启：trz 上传，tsz 下载；服务器需要安装 trzsz。
+    EnableTrzsz yes
+
+    # rz/sz 支持默认开启；服务器和本地均需要安装 lrzsz。
+    EnableZmodem yes
+
+    # 自动识别拖入终端的本地文件并上传；程序默认关闭，此处显式开启。
+    EnableDragFile yes
+
+    # 拖拽时在服务器执行 trz；拖拽目录会自动追加 -d。
+    # 程序默认命令是 rz；若改回 rz，需要保持 EnableZmodem yes。
+    DragFileUploadCommand trz
+
+    # trz/rz 上传文件选择框的本地初始目录，不是服务器上的保存目录。
+    DefaultUploadPath ~/Downloads
+
+    # tsz/sz 直接保存到此本地目录，不再弹出目录选择框；请确保目录存在。
+    # 注释掉此项可在每次下载时选择保存目录。
+    DefaultDownloadPath ~/Downloads
+
+    # trz/tsz 进度条的渐变颜色：两个不带 # 的十六进制颜色，以空格分隔。
+    ProgressColorPair B14FFF 00FFA3
+
+    # Allow remote applications to copy text into the local clipboard via OSC52.
+    EnableOSC52 yes
+
+    # Console escape. Set ConsoleEscapeTime to 0 to disable tssh console escape.
+    EscapeChar ~
+    ConsoleEscapeTime 1

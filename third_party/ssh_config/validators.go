@@ -20,6 +20,16 @@ func Default(keyword string) string {
 	return defaults[strings.ToLower(keyword)]
 }
 
+// Defaults returns a copy of the registered configuration defaults. Keys are
+// lowercase, as in Default. Changing the returned map does not change defaults.
+func Defaults() map[string]string {
+	result := make(map[string]string, len(defaults))
+	for key, value := range defaults {
+		result[key] = value
+	}
+	return result
+}
+
 // SetDefault change the default value for the given keyword.
 func SetDefault(keyword string, value string) {
 	defaults[strings.ToLower(keyword)] = value

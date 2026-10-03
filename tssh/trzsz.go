@@ -27,15 +27,19 @@ package tssh
 import (
 	"fmt"
 	"io"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/trzsz/trzsz-go/trzsz"
 )
 
 type transferOptions struct {
-	enableZmodem  bool
-	enableOSC52   bool
-	disableFilter bool
+	enableTrzsz    bool
+	enableZmodem   bool
+	enableDragFile bool
+	enableOSC52    bool
+	disableFilter  bool
 }
 
 func isConfigNo(value string) bool {
@@ -57,16 +61,24 @@ func isConfigYes(value string) bool {
 }
 
 func getTransferOptions(args *sshArgs) transferOptions {
-	enableZmodem := true
-	if isConfigNo(getExOptionConfig(args, "EnableZmodem")) {
-		enableZmodem = false
-	}
+	enableTrzsz := !isConfigNo(getExOptionConfig(args, "EnableTrzsz"))
+	enableZmodem := !isConfigNo(getExOptionConfig(args, "EnableZmodem"))
+	enableDragFile := args.DragFile || isConfigYes(getExOptionConfig(args, "EnableDragFile"))
 	enableOSC52 := isConfigYes(getExOptionConfig(args, "EnableOSC52"))
 	return transferOptions{
-		enableZmodem:  enableZmodem,
-		enableOSC52:   enableOSC52,
-		disableFilter: !enableZmodem && !enableOSC52,
+		enableTrzsz:    enableTrzsz,
+		enableZmodem:   enableZmodem,
+		enableDragFile: enableDragFile,
+		enableOSC52:    enableOSC52,
+		disableFilter:  !enableTrzsz && !enableZmodem && !enableDragFile && !enableOSC52,
 	}
+}
+
+func getDragFileUploadCommand(args *sshArgs) string {
+	if dragFileUploadCommand := getExOptionConfig(args, "DragFileUploadCommand"); dragFileUploadCommand != "" {
+		return dragFileUploadCommand
+	}
+	return "rz"
 }
 
 func setupTransferFilter(sshConn *sshConnection) error {
@@ -86,37 +98,15 @@ func setupTransferFilter(sshConn *sshConnection) error {
 		return nil
 	}
 
-	clientIn, writerIn := io.Pipe()
-	readerOut, clientOut := io.Pipe()
-	serverIn, serverOut := sshConn.serverIn, sshConn.serverOut
-	sshConn.serverIn, sshConn.serverOut = writerIn, readerOut
-
-	trzsz.SetAffectedByWindows(false)
-
 	width, _, err := getTerminalSize()
 	if err != nil {
 		return fmt.Errorf("get terminal size failed: %v", err)
 	}
 
-	// custom configuration
-	defaultUploadPath := getExOptionConfig(args, "DefaultUploadPath")
-	defaultDownloadPath := getExOptionConfig(args, "DefaultDownloadPath")
-	progressColorPair := getExOptionConfig(args, "ProgressColorPair")
-	// create a transfer filter for zmodem and OSC52
-	//
-	//   os.Stdin  ┌────────┐   os.Stdin   ┌─────────────┐   ServerIn   ┌────────┐
-	// ───────────►│        ├─────────────►│             ├─────────────►│        │
-	//             │        │              │ TrzszFilter │              │        │
-	// ◄───────────│ Client │◄─────────────┤             │◄─────────────┤ Server │
-	//   os.Stdout │        │   os.Stdout  └─────────────┘   ServerOut  │        │
-	// ◄───────────│        │◄──────────────────────────────────────────┤        │
-	//   os.Stderr └────────┘                  stderr                   └────────┘
-	trzszFilter := trzsz.NewTrzszFilter(clientIn, clientOut, serverIn, serverOut, trzsz.TrzszOptions{
-		TerminalColumns: int32(width),
-		EnableZmodem:    options.enableZmodem,
-		EnableOSC52:     options.enableOSC52,
-		DisableTrzsz:    true,
-	})
+	clientIn, writerIn := io.Pipe()
+	readerOut, clientOut := io.Pipe()
+	trzszFilter := newTransferFilter(sshConn, clientIn, clientOut, width, options)
+	sshConn.serverIn, sshConn.serverOut = writerIn, readerOut
 
 	// reset terminal and close on exit
 	addOnExitFunc(func() { trzszFilter.ResetTerminal(); trzszFilter.Close() })
@@ -128,13 +118,51 @@ func setupTransferFilter(sshConn *sshConnection) error {
 		_ = sshConn.session.WindowChange(height, width)
 	})
 
+	return nil
+}
+
+func newTransferFilter(sshConn *sshConnection, clientIn io.Reader, clientOut io.WriteCloser,
+	width int, options transferOptions) *trzsz.TrzszFilter {
+	trzsz.SetAffectedByWindows(false)
+	args := sshConn.param.args
+	// custom configuration
+	defaultUploadPath := getExOptionConfig(args, "DefaultUploadPath")
+	defaultDownloadPath := getExOptionConfig(args, "DefaultDownloadPath")
+	progressColorPair := getExOptionConfig(args, "ProgressColorPair")
+	dragFileUploadCommand := getDragFileUploadCommand(args)
+
+	// create a transfer filter for trzsz, zmodem, drag upload, and OSC52
+	//
+	//   os.Stdin  ┌────────┐   os.Stdin   ┌─────────────┐   ServerIn   ┌────────┐
+	// ───────────►│        ├─────────────►│             ├─────────────►│        │
+	//             │        │              │ TrzszFilter │              │        │
+	// ◄───────────│ Client │◄─────────────┤             │◄─────────────┤ Server │
+	//   os.Stdout │        │   os.Stdout  └─────────────┘   ServerOut  │        │
+	// ◄───────────│        │◄──────────────────────────────────────────┤        │
+	//   os.Stderr └────────┘                  stderr                   └────────┘
+	trzszFilter := trzsz.NewTrzszFilter(clientIn, clientOut, sshConn.serverIn, sshConn.serverOut, trzsz.TrzszOptions{
+		TerminalColumns: int32(width),
+		DetectDragFile:  options.enableDragFile,
+		DetectTraceLog:  args.TraceLog,
+		EnableZmodem:    options.enableZmodem,
+		EnableOSC52:     options.enableOSC52,
+		DisableTrzsz:    !options.enableTrzsz,
+	})
+
 	// setup transfer config
 	trzszFilter.SetDefaultUploadPath(defaultUploadPath)
 	trzszFilter.SetDefaultDownloadPath(defaultDownloadPath)
+	trzszFilter.SetDragFileUploadCommand(dragFileUploadCommand)
 	trzszFilter.SetProgressColorPair(progressColorPair)
 
 	// setup redraw screen
 	trzszFilter.SetRedrawScreenFunc(sshConn.session.RedrawScreen)
 
-	return nil
+	// setup tunnel connect for trzsz ( trz / tsz )
+	trzszFilter.SetTunnelConnector(func(port int) net.Conn {
+		conn, _ := sshConn.client.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+		return conn
+	})
+
+	return trzszFilter
 }

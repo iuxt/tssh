@@ -11,7 +11,7 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 服务器太多，记不住所有别名，`tssh` 内置登录界面，支持搜索和选择服务器登录。
 
-- `tssh` 登录服务器后，内置支持 lrzsz zmodem ( rz / sz )，传文件无需另外新开窗口。
+- `tssh` 登录服务器后，内置支持 trzsz ( trz / tsz ) 和 lrzsz zmodem ( rz / sz )，传文件无需另外新开窗口。
 
 - 有些服务器不支持公钥登录，`tssh` 支持记住密码，支持自动交互，提升登录的效率。
 
@@ -42,21 +42,55 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
 - 如果配置了 `HideHost yes`，或者别名中含有 `*` 或 `?` 通配符时，则不会显示在登录界面中。
 
-- `tssh` 支持很多快捷键和搜索功能。
+- 登录界面默认使用简体中文，支持中文别名和分组标签搜索。宽屏并排显示主机列表与连接详情，窄屏自动切换为紧凑列表，调整窗口大小后布局会同步更新。
+
+- 连接详情列出当前主机匹配的配置项（含 `Host *`、`Match`、`Include` 和扩展配置）以及程序默认值，并标注“配置”“扩展配置”或“默认”。未设置的字段也会保留；密码等敏感字段以掩码显示。配置中的命令和连接时才展开的 token 按原配置展示。
+
+- 按 `F2` 切换到详情区，使用 `↑/↓` 滚动、`←/→` 或 `PageUp/PageDown` 翻页、`Home/End` 跳到首尾；按 `F2` 或 `Esc` 返回主机列表。窄屏下详情单独显示，长路径和多值字段可完整查看。
+
+- 顶部显示匹配主机数和筛选条件，底部显示页码与常用操作。按 `?` 打开完整快捷键帮助，可用方向键和翻页键滚动，按 `?` 或 `Esc` 返回。
+
+- 按 `/` 搜索，`Enter` 锁定当前筛选条件，再按一次 `Enter` 连接选中主机。搜索时按 `Esc` 取消本次输入，按 `Ctrl+E` 清空全部筛选。
+
+- `tssh` 支持以下快捷键和搜索功能。
 
   | 操作      | 全局快捷键                      | 非搜索快捷键 | 快捷键描述      |
   | --------- | ------------------------------- | ------------ | --------------- |
-  | Confirm   | Enter                           |              | 确认并登录      |
-  | Quit/Exit | Ctrl+C Ctrl+Q                   | q Q          | 取消并退出      |
-  | Move Prev | Ctrl+K Shift+Tab ↑              | k K          | 往上移光标      |
-  | Move Next | Ctrl+J Tab ↓                    | j J          | 往下移光标      |
-  | Page Up   | Ctrl+H Ctrl+U Ctrl+B PageUp ←   | h H u U b B  | 往上翻一页      |
-  | Page Down | Ctrl+L Ctrl+D Ctrl+F PageDown → | l L d D f F  | 往下翻一页      |
-  | Goto Home | Home                            | g            | 跳到第一行      |
-  | Goto End  | End                             | G            | 跳到最尾行      |
-  | EraseKeys | Ctrl+E                          | e E          | 擦除搜索关键字  |
-  | TglSearch | /                               |              | 切换搜索功能    |
-  | Tgl Help  | ?                               |              | 切换帮助信息    |
+  | 连接详情  | F2                              |              | 切换列表与详情  |
+  | 确认连接   | Enter                           |              | 确认并登录      |
+  | 退出界面 | Ctrl+C Ctrl+Q                   | q Q          | 取消并退出      |
+  | 上一主机 | Ctrl+K Shift+Tab ↑              | k K          | 往上移光标      |
+  | 下一主机 | Ctrl+J Tab ↓                    | j J          | 往下移光标      |
+  | 向上翻页   | Ctrl+H Ctrl+U Ctrl+B PageUp ←   | h H u U b B  | 往上翻一页      |
+  | 向下翻页 | Ctrl+L Ctrl+D Ctrl+F PageDown → | l L d D f F  | 往下翻一页      |
+  | 首个主机 | Home                            | g            | 跳到第一行      |
+  | 末个主机  | End                             | G            | 跳到最尾行      |
+  | 清空筛选 | Ctrl+E                          | e E          | 擦除搜索关键字  |
+  | 切换搜索 | /                               |              | 切换搜索功能    |
+  | 快捷键帮助  | ?                               |              | 切换帮助信息    |
+
+### 支持 trzsz 上传和下载
+
+- `trz / tsz` 功能默认开启。服务器需要安装 `trzsz`，本地只需要 `tssh`。
+
+- 使用 `tssh` 登录服务器后，执行 `trz`，在弹出的文件选择框中选择本地文件，上传到服务器当前目录；执行 `tsz /path/to/file`，选择本地保存目录，下载服务器上的文件。多个文件可用 `tsz file1 file2`，目录可用 `trz -d` 上传或 `tsz -d /path/to/directory` 下载。
+
+- 可在 `~/.tssh/config` 或 `~/.tssh/password` 中配置上传文件选择框的初始目录和下载保存目录。设置 `DefaultDownloadPath` 后，下载会直接保存到该目录。
+
+  ```
+  Host *
+    EnableTrzsz yes
+    DefaultUploadPath ~/Downloads
+    DefaultDownloadPath ~/Downloads
+  ```
+
+- 设置 `EnableTrzsz No` 可禁用 `trz / tsz`，也可在命令行中使用 `-o EnableTrzsz=No`。
+
+- 直接通过命令行下载时，需要使用 `-t` 分配终端：
+
+  ```sh
+  tssh -t xxx_server 'tsz /path/to/file1 /path/to/file2'
+  ```
 
 ### 支持 lrzsz zmodem
 

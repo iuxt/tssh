@@ -25,119 +25,271 @@ SOFTWARE.
 package tssh
 
 import (
+	"fmt"
 	"strings"
 	"testing"
-	"text/template"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/trzsz/promptui"
 )
 
+func promptTestHosts() []*sshHost {
+	return []*sshHost{
+		{Alias: "开发环境", Host: "dev.example.com", User: "root", Port: "22", GroupLabels: "开发 华东"},
+		{Alias: "数据库", Host: "db.example.com", User: "admin", Port: "2222", GroupLabels: "生产 华东"},
+		{Alias: "production-europe-primary", Host: "192.168.100.22", GroupLabels: "生产 欧洲"},
+	}
+}
+
+func pressPrompt(p *sshPrompt, key string) tea.Cmd {
+	msg := tea.KeyPressMsg{}
+	switch key {
+	case "f2":
+		msg.Code = tea.KeyF2
+	case "enter":
+		msg.Code = tea.KeyEnter
+	case "esc":
+		msg.Code = tea.KeyEscape
+	case "backspace":
+		msg.Code = tea.KeyBackspace
+	case "up":
+		msg.Code = tea.KeyUp
+	case "down":
+		msg.Code = tea.KeyDown
+	case "right":
+		msg.Code = tea.KeyRight
+	case "left":
+		msg.Code = tea.KeyLeft
+	case "end":
+		msg.Code = tea.KeyEnd
+	case "home":
+		msg.Code = tea.KeyHome
+	default:
+		if strings.HasPrefix(key, "ctrl+") {
+			msg.Code = []rune(key)[5]
+			msg.Mod = tea.ModCtrl
+		} else {
+			msg.Text = key
+			msg.Code = []rune(key)[0]
+		}
+	}
+	_, cmd := p.Update(msg)
+	return cmd
+}
+
 func TestPromptOnlyConfirmsWithEnter(t *testing.T) {
-	prompt := &sshPrompt{}
-	assert.True(t, prompt.userConfirm([]byte{keyEnter}))
-
-	for _, key := range []byte{'p', 'P', 't', 'T', 'w', 'W', '\x10', '\x14', '\x17'} {
-		assert.False(t, prompt.userConfirm([]byte{key}), "key %q should not start a login", key)
+	p := newSSHPrompt(promptTestHosts(), "")
+	for _, key := range []string{"p", "P", "t", "T", "w", "W", "ctrl+p", "ctrl+t", "ctrl+w"} {
+		assert.Nil(t, pressPrompt(p, key))
+		assert.Nil(t, p.selected)
 	}
-
-	prompt.search = true
-	assert.False(t, prompt.userConfirm([]byte{keyEnter}))
+	pressPrompt(p, "/")
+	assert.Nil(t, pressPrompt(p, "enter"))
+	assert.Nil(t, p.selected)
+	assert.False(t, p.search)
+	assert.NotNil(t, pressPrompt(p, "enter"))
+	assert.Equal(t, "开发环境", p.selected.Alias)
 }
 
-func TestPromptShortcutsRenderInRightPanel(t *testing.T) {
-	layout := newPromptLayout(100, 20)
-	prompt := &sshPrompt{selector: &promptui.Select{}, layout: layout, showShortcuts: true}
-	assert.Nil(t, prompt.getShortcuts())
-	assert.True(t, layout.showShortcuts.Load())
-	assert.True(t, prompt.selector.HideHelp)
+func TestPromptChineseSearchAndLockedKeywords(t *testing.T) {
+	p := newSSHPrompt(promptTestHosts(), "生产")
+	require.Len(t, p.visible, 2)
+	pressPrompt(p, "/")
+	pressPrompt(p, "华东")
+	require.Len(t, p.visible, 1)
+	assert.Equal(t, "数据库", p.currentHost().Alias)
+	pressPrompt(p, "enter")
+	assert.Equal(t, "生产 华东", p.keywords)
+	pressPrompt(p, "/")
+	pressPrompt(p, "不存在")
+	assert.Empty(t, p.visible)
+	assert.Nil(t, pressPrompt(p, "enter"))
+	assert.True(t, p.search)
+	pressPrompt(p, "esc")
+	require.Len(t, p.visible, 1)
+	assert.Equal(t, "生产 华东", p.keywords)
+	pressPrompt(p, "ctrl+e")
+	assert.Len(t, p.visible, 3)
+	assert.Empty(t, p.keywords)
 }
 
-func TestCalculatePromptPageSize(t *testing.T) {
-	assert.Equal(t, defaultPromptPageSize, calculatePromptPageSize(0))
-	assert.Equal(t, 19, calculatePromptPageSize(24))
-	assert.Equal(t, 1, calculatePromptPageSize(4))
+func TestPromptSearchEditingAndPaste(t *testing.T) {
+	p := newSSHPrompt(promptTestHosts(), "")
+	pressPrompt(p, "/")
+	pressPrompt(p, "数据酷")
+	pressPrompt(p, "backspace")
+	assert.Equal(t, "数据", p.query)
+	pressPrompt(p, "库")
+	require.Len(t, p.visible, 1)
+	pressPrompt(p, "ctrl+e")
+	pressPrompt(p, "/")
+	p.Update(tea.PasteMsg{Content: "生产\n华东\x00"})
+	assert.Equal(t, "生产 华东", p.query)
+	require.Len(t, p.visible, 1)
+	assert.Nil(t, p.selected)
+	pressPrompt(p, "q")
+	assert.False(t, p.quit, "q must be entered as a search keyword")
+	assert.NotNil(t, pressPrompt(p, "ctrl+q"))
+	assert.True(t, p.quit)
 }
 
-func TestPromptPageCountUsesFullScreenSize(t *testing.T) {
-	prompt := &sshPrompt{
-		selector: &promptui.Select{Size: 15},
-		hosts:    make([]*sshHost, 31),
+func TestPromptNavigationAndResize(t *testing.T) {
+	hosts := make([]*sshHost, 40)
+	for i := range hosts {
+		hosts[i] = &sshHost{Alias: fmt.Sprintf("主机%02d", i)}
 	}
-	assert.Equal(t, 3, prompt.getPageCount())
+	p := newSSHPrompt(hosts, "")
+	p.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	assert.Equal(t, 17, p.pageSize())
+	pressPrompt(p, "right")
+	assert.Equal(t, 17, p.cursor)
+	pressPrompt(p, "G")
+	assert.Equal(t, 39, p.cursor)
+	pressPrompt(p, "down")
+	assert.Equal(t, 39, p.cursor)
+	p.Update(tea.WindowSizeMsg{Width: 40, Height: 12})
+	assert.Equal(t, 39, p.cursor)
+	assert.Contains(t, ansi.Strip(p.View().Content), "主机39")
+	pressPrompt(p, "home")
+	pressPrompt(p, "up")
+	assert.Equal(t, 0, p.cursor)
 }
 
-func TestPromptTwoColumnLayout(t *testing.T) {
-	layout := newPromptLayout(100, 20)
-	hosts := []interface{}{
-		&sshHost{Alias: "dev", Host: "dev.example.com", Port: "22", User: "root"},
-		&sshHost{Alias: "prod", Host: "prod.example.com", Port: "2222"},
+func TestPromptResponsiveChineseLayout(t *testing.T) {
+	for _, size := range [][2]int{{120, 30}, {100, 24}, {80, 24}, {60, 16}, {40, 12}, {20, 8}, {8, 4}, {1, 1}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			p := newSSHPrompt(promptTestHosts(), "")
+			p.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			for _, help := range []bool{false, true} {
+				p.showShortcuts = help
+				view := p.View()
+				assert.True(t, view.AltScreen)
+				lines := strings.Split(view.Content, "\n")
+				assert.LessOrEqual(t, len(lines), size[1])
+				for _, line := range lines {
+					assert.Equal(t, size[0], ansi.StringWidth(line))
+				}
+			}
+			p.showShortcuts = false
+			plain := ansi.Strip(p.View().Content)
+			if size[0] >= 76 {
+				assert.Contains(t, plain, "连接详情")
+				assert.Contains(t, plain, "root")
+			}
+			if size[0] >= 40 {
+				assert.Contains(t, plain, "开发环境")
+			}
+			assert.NotContains(t, plain, "SSH Details")
+		})
 	}
+}
 
-	output := layout.render(hosts, 0)
-	lines := strings.Split(output, "\n")
-	require.Len(t, lines, 21)
-	for _, line := range lines {
-		assert.Equal(t, 100, ansi.StringWidth(line))
-	}
-	plain := ansi.Strip(output)
-	assert.Contains(t, plain, "dev.example.com")
-	assert.Contains(t, plain, "SSH Details")
-	assert.Contains(t, plain, "Instructions")
+func TestPromptEmptyAndHelpStates(t *testing.T) {
+	p := newSSHPrompt(nil, "")
+	assert.Contains(t, ansi.Strip(p.View().Content), "暂无可用主机")
+	assert.Nil(t, pressPrompt(p, "enter"))
+	p = newSSHPrompt(promptTestHosts(), "missing")
+	assert.Contains(t, ansi.Strip(p.View().Content), "未找到匹配的主机")
+	assert.Nil(t, pressPrompt(p, "enter"))
+	pressPrompt(p, "ctrl+e")
+	pressPrompt(p, "?")
+	assert.Contains(t, ansi.Strip(p.View().Content), "快捷键说明")
+	assert.Nil(t, pressPrompt(p, "enter"), "help must not start a connection")
+	pressPrompt(p, "end")
+	assert.Contains(t, ansi.Strip(p.View().Content), "关闭帮助")
+	assert.Equal(t, 0, p.cursor)
+	pressPrompt(p, "esc")
+	assert.False(t, p.showShortcuts)
 }
 
 func TestPromptHostColumnsStayAligned(t *testing.T) {
-	layout := newPromptLayout(80, 5)
-	hosts := []interface{}{
-		&sshHost{Alias: "dev", Host: "10.0.0.1", GroupLabels: "development"},
-		&sshHost{Alias: "production-europe-primary", Host: "192.168.100.22"},
-		&sshHost{Alias: "数据库", Host: "db.example.com"},
-		&sshHost{Alias: "production-europe-backup", Host: "192.168.100.22"},
+	for _, width := range []int{38, 50, 70} {
+		for _, host := range promptTestHosts() {
+			row := promptHostColumns(host.Alias, host.Host, width)
+			assert.Equal(t, width, ansi.StringWidth(row))
+			assert.Contains(t, row, host.Host)
+		}
 	}
-	lines := strings.Split(ansi.Strip(layout.render(hosts, 0)), "\n")
-	require.Len(t, lines, 6)
+	first := truncatePromptMiddle("production-europe-primary", 15)
+	second := truncatePromptMiddle("production-europe-backup", 15)
+	assert.NotEqual(t, first, second)
+	assert.Contains(t, first, "…")
+}
+
+func TestConsoleChineseAndResize(t *testing.T) {
+	m := initMenuModel(60, 80)
+	m.items = []*menuItem{{key: ".", label: getText("console/terminate")}}
+	assert.Contains(t, ansi.Strip(m.View().Content), "会话控制台")
+	assert.Contains(t, ansi.Strip(m.View().Content), "断开当前 SSH 会话")
+	m.Update(tea.WindowSizeMsg{Width: 30, Height: 20})
+	assert.Equal(t, 30, m.menuWidth)
+	assert.Len(t, m.items, 1)
+	assert.NotPanics(t, func() { initMenuModel(0, 0).View() })
+}
+
+func TestPromptHelpPreservesSearch(t *testing.T) {
+	p := newSSHPrompt(promptTestHosts(), "")
+	pressPrompt(p, "/")
+	pressPrompt(p, "华东")
+	pressPrompt(p, "?")
+	pressPrompt(p, "esc")
+	assert.False(t, p.showShortcuts)
+	assert.True(t, p.search)
+	assert.Equal(t, "华东", p.query)
+	pressPrompt(p, "esc")
+	assert.False(t, p.search)
+	assert.Len(t, p.visible, 3)
+}
+
+func TestPromptDetailsScrolling(t *testing.T) {
+	p := newSSHPrompt(promptTestHosts(), "")
+	p.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	lines := p.detailLines()
+	require.Greater(t, len(lines), p.pageSize())
+	pressPrompt(p, "f2")
+	assert.True(t, p.detailFocus)
+	pressPrompt(p, "right")
+	assert.Equal(t, p.pageSize(), p.detailOffset)
+	assert.Equal(t, 0, p.cursor)
+	pressPrompt(p, "end")
+	assert.Equal(t, len(lines)-p.pageSize(), p.detailOffset)
+	assert.Contains(t, ansi.Strip(p.View().Content), ansi.Strip(lines[len(lines)-1]))
+	pressPrompt(p, "down")
+	assert.Equal(t, len(lines)-p.pageSize(), p.detailOffset)
+	pressPrompt(p, "home")
+	assert.Zero(t, p.detailOffset)
+	pressPrompt(p, "esc")
+	pressPrompt(p, "down")
+	assert.Equal(t, 1, p.cursor)
+	assert.Zero(t, p.detailOffset)
+	pressPrompt(p, "f2")
+	pressPrompt(p, "end")
+	p.Update(tea.WindowSizeMsg{Width: 40, Height: 12})
+	narrow := p.View().Content
+	assert.Contains(t, ansi.Strip(narrow), "连接详情")
+	for _, line := range strings.Split(narrow, "\n") {
+		assert.Equal(t, 40, ansi.StringWidth(line))
+	}
+	pressPrompt(p, "home")
+	assert.Contains(t, ansi.Strip(p.View().Content), "数据库")
+	pressPrompt(p, "f2")
+	assert.False(t, p.detailFocus)
+	assert.Contains(t, ansi.Strip(p.View().Content), "主机名称")
+}
+
+func TestPromptDetailsNeverTruncateValues(t *testing.T) {
+	value := strings.Repeat("长路径/", 30) + "文件末尾.pem"
+	entries := []promptConfigEntry{{"IdentityFile", value, "配置"}, {"UnsetOption", "未设置", "默认"}}
+	lines := promptDetails(entries, 32)
+	var values []string
 	for _, line := range lines {
-		assert.Equal(t, 80, ansi.StringWidth(line))
+		assert.LessOrEqual(t, ansi.StringWidth(line), 32)
+		if strings.HasPrefix(line, "  ") {
+			values = append(values, strings.TrimPrefix(line, "  "))
+		}
 	}
-	column := func(line, value string) int {
-		index := strings.Index(line, value)
-		require.GreaterOrEqual(t, index, 0)
-		return ansi.StringWidth(line[:index])
-	}
-	addressColumn := column(lines[0], "IP / HOST")
-	assert.Equal(t, addressColumn, column(lines[1], "10.0.0.1"))
-	assert.Equal(t, addressColumn, column(lines[2], "192.168.100.22"))
-	assert.Equal(t, addressColumn, column(lines[3], "db.example.com"))
-	assert.Equal(t, addressColumn, column(lines[4], "192.168.100.22"))
-	assert.Contains(t, lines[2], "…")
-	assert.Contains(t, lines[4], "…")
-	assert.NotEqual(t, lines[2], lines[4])
-	assert.NotContains(t, lines[1], "development")
-}
-
-func TestPromptInstructionsFitInNarrowTerminal(t *testing.T) {
-	layout := newPromptLayout(60, 6)
-	output := ansi.Strip(layout.render([]interface{}{&sshHost{Alias: "dev", Host: "10.0.0.1"}}, 0))
-	assert.Contains(t, output, "Enter Connect")
-	assert.Contains(t, output, "Page down")
-}
-
-func TestPromptStyleTemplates(t *testing.T) {
-	funcMap := template.FuncMap{}
-	for name, fn := range promptui.FuncMap {
-		funcMap[name] = fn
-	}
-	funcMap["getExConfig"] = func(string, string) string { return "" }
-	funcMap["hasField"] = func(any, string) bool { return true }
-
-	style := getPromptStyle()
-	for name, source := range map[string]string{
-		"help": style.Help, "label": style.Label, "active": style.Active,
-		"inactive": style.Inactive, "details": style.Details, "shortcuts": style.Shortcuts,
-	} {
-		_, err := template.New(name).Funcs(funcMap).Parse(source)
-		require.NoError(t, err, name)
-	}
+	assert.Contains(t, strings.Join(values, ""), value)
+	assert.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "未设置")
 }

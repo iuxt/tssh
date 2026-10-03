@@ -8,13 +8,11 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
-	github.com/chzyer/readline v1.5.1
 	github.com/creack/pty v1.1.24
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/mattn/go-isatty v0.0.22
-	github.com/mattn/go-runewidth v0.0.23
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/otp v1.5.0
 	github.com/skeema/knownhosts v1.3.2
@@ -23,7 +21,6 @@ require (
 	github.com/trzsz/go-socks5 v0.1.1
 	github.com/trzsz/iterm2 v0.2.1
 	github.com/trzsz/pageant v0.1.1
-	github.com/trzsz/promptui v0.10.8
 	github.com/trzsz/shellescape v1.6.0
 	github.com/trzsz/ssh_config v1.3.8
 	github.com/trzsz/trzsz-go v1.2.1-0.20260410165008-9be4a4a9e14b
@@ -43,6 +40,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -58,12 +56,14 @@ require (
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/ncruces/zenity v0.10.14 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/randall77/makefat v0.0.0-20260406194835-1b91746796b7 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/trzsz/promptui v0.10.8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/image v0.40.0 // indirect
 	golang.org/x/net v0.54.0 // indirect
