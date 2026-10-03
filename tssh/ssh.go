@@ -26,6 +26,7 @@ package tssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -330,8 +331,24 @@ func (c *sshConnection) forceExit(code int, msg string) {
 
 type sshSessionWrapper struct {
 	ssh.Session
-	height int
-	width  int
+	height   int
+	width    int
+	exitCode int
+}
+
+func (s *sshSessionWrapper) Wait() error {
+	err := s.Session.Wait()
+	if err == nil {
+		s.exitCode = 0
+		return nil
+	}
+	var exitErr *ssh.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitStatus() > 0 {
+		s.exitCode = exitErr.ExitStatus()
+	} else {
+		s.exitCode = 255
+	}
+	return err
 }
 
 func (s *sshSessionWrapper) RequestPty(term string, height, width int, termmodes ssh.TerminalModes) error {
@@ -359,7 +376,7 @@ func (s *sshSessionWrapper) GetTerminalWidth() int {
 }
 
 func (s *sshSessionWrapper) GetExitCode() int {
-	return 0
+	return s.exitCode
 }
 
 type sshClientWrapper struct {
@@ -380,7 +397,11 @@ func (c *sshClientWrapper) NewSession() (SshSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sshSessionWrapper{*session, 0, 0}, nil
+	return &sshSessionWrapper{Session: *session}, nil
+}
+
+func (c *sshClientWrapper) OpenChannel(channelType string, extra []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	return c.client.OpenChannel(channelType, extra)
 }
 
 func (c *sshClientWrapper) DialTimeout(network, addr string, timeout time.Duration) (conn net.Conn, err error) {

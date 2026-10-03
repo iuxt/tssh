@@ -60,6 +60,7 @@ const (
 	kExitCodeStdinFailed          = 21
 	kExitCodeTransferFilterFailed = 22
 	kExitCodeOpenSession          = 23
+	kExitCodeForwardFailed        = 24
 	kExitCodeToolsError           = 101
 	kExitCodeConsoleKill          = 203
 	kExitCodeForceExit            = 204

@@ -217,12 +217,12 @@ var defaultIdentityFiles = []string{
 // these directives support multiple items that can be collected
 // across multiple files
 var pluralDirectives = map[string]bool{
-	"CertificateFile": true,
-	"IdentityFile":    true,
-	"DynamicForward":  true,
-	"RemoteForward":   true,
-	"SendEnv":         true,
-	"SetEnv":          true,
+	"certificatefile": true,
+	"identityfile":    true,
+	"dynamicforward":  true,
+	"remoteforward":   true,
+	"sendenv":         true,
+	"setenv":          true,
 }
 
 // SupportsMultiple reports whether a directive can be specified multiple times.

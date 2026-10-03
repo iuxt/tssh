@@ -267,15 +267,18 @@ func sshStart(args *sshArgs) (int, error) {
 
 	// request subsystem
 	if args.Subsystem {
-		if err = subsystemForward(sshConn.client, sshConn.cmd); err != nil {
+		code, err := subsystemForward(sshConn.client, sshConn.cmd)
+		if err != nil {
 			return kExitCodeSubFwFailed, err
 		}
-		return 0, nil
+		return code, nil
 	}
 
 	// ssh port forwarding
 	if !sshConn.param.control {
-		sshPortForward(sshConn)
+		if err := sshPortForward(sshConn); err != nil {
+			return kExitCodeForwardFailed, err
+		}
 	}
 
 	// not executing remote command

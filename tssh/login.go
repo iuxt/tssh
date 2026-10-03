@@ -299,9 +299,12 @@ func (a *cmdAddr) String() string {
 }
 
 type cmdPipe struct {
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	addr   string
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
+	cmd      *exec.Cmd
+	addr     string
+	once     sync.Once
+	closeErr error
 }
 
 func (p *cmdPipe) LocalAddr() net.Addr {
@@ -321,24 +324,38 @@ func (p *cmdPipe) Write(b []byte) (int, error) {
 }
 
 func (p *cmdPipe) SetDeadline(t time.Time) error {
-	return nil
+	if err := p.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return p.SetWriteDeadline(t)
 }
 
 func (p *cmdPipe) SetReadDeadline(t time.Time) error {
-	return nil
+	if pipe, ok := p.stdout.(interface{ SetReadDeadline(time.Time) error }); ok {
+		return pipe.SetReadDeadline(t)
+	}
+	return fmt.Errorf("proxy command stdout does not support deadlines")
 }
 
 func (p *cmdPipe) SetWriteDeadline(t time.Time) error {
-	return nil
+	if pipe, ok := p.stdin.(interface{ SetWriteDeadline(time.Time) error }); ok {
+		return pipe.SetWriteDeadline(t)
+	}
+	return fmt.Errorf("proxy command stdin does not support deadlines")
 }
 
 func (p *cmdPipe) Close() error {
-	err := p.stdin.Close()
-	err2 := p.stdout.Close()
-	if err != nil {
-		return err
-	}
-	return err2
+	p.once.Do(func() {
+		p.closeErr = p.stdin.Close()
+		if err := p.stdout.Close(); p.closeErr == nil {
+			p.closeErr = err
+		}
+		if p.cmd != nil && p.cmd.Process != nil {
+			_ = p.cmd.Process.Kill()
+			_ = p.cmd.Wait()
+		}
+	})
+	return p.closeErr
 }
 
 func execProxyCommand(param *sshParam) (net.Conn, string, error) {
@@ -368,7 +385,7 @@ func execProxyCommand(param *sshParam) (net.Conn, string, error) {
 		return nil, command, err
 	}
 
-	return &cmdPipe{stdin: cmdIn, stdout: cmdOut, addr: param.addr}, command, nil
+	return &cmdPipe{stdin: cmdIn, stdout: cmdOut, cmd: cmd, addr: param.addr}, command, nil
 }
 
 func parseRemoteCommand(param *sshParam) (string, error) {
@@ -570,8 +587,21 @@ func connectViaProxyCommand(param *sshParam, config *ssh.ClientConfig) (SshClien
 	if err != nil {
 		return nil, fmt.Errorf("proxy command [%s] exec failed: %v", cmd, err)
 	}
+	var timedOut atomic.Bool
+	var timer *time.Timer
+	if config.Timeout > 0 {
+		timer = time.AfterFunc(config.Timeout, func() {
+			timedOut.Store(true)
+			_ = conn.Close()
+		})
+		defer timer.Stop()
+	}
 	ncc, chans, reqs, err := ssh.NewClientConn(conn, param.addr, config)
 	if err != nil {
+		_ = conn.Close()
+		if timedOut.Load() {
+			return nil, fmt.Errorf("proxy command [%s] connection timed out after %s: %w", cmd, config.Timeout, err)
+		}
 		return nil, fmt.Errorf("proxy command [%s] new conn [%s] failed: %v", cmd, param.addr, err)
 	}
 	debug("login to [%s] via proxy command [%s] success", param.args.Destination, cmd)

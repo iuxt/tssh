@@ -25,6 +25,7 @@ SOFTWARE.
 package tssh
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -290,20 +291,27 @@ func stdioForward(args *sshArgs, client SshClient, addr string) error {
 	return nil
 }
 
-func localForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) {
-	localForwardTCP(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
+func localForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) error {
+	return localForwardTCP(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
 }
 
-func remoteForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration) {
-	remoteForwardTCP(sshConn, f, gateway, timeout)
+func remoteForward(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration) error {
+	return remoteForwardTCP(sshConn, f, gateway, timeout)
 }
 
-func sshPortForward(sshConn *sshConnection) {
+func sshPortForward(sshConn *sshConnection) error {
 	args := sshConn.param.args
 	// clear all forwardings
 	if strings.ToLower(getOptionConfig(args, "ClearAllForwardings")) == "yes" {
 		debug("clear all forwardings")
-		return
+		return nil
+	}
+	exitOnFailure := strings.EqualFold(getOptionConfig(args, "ExitOnForwardFailure"), "yes")
+	handleFailure := func(err error) error {
+		if exitOnFailure {
+			return err
+		}
+		return nil
 	}
 
 	gateway := isGatewayPorts(sshConn.param.args)
@@ -313,42 +321,64 @@ func sshPortForward(sshConn *sshConnection) {
 
 	// dynamic forward
 	for _, b := range args.DynamicForward.binds {
-		dynamicForward(sshConn, b, gateway, timeout, unlinkUnix, bindMask)
+		if err := handleFailure(dynamicForward(sshConn, b, gateway, timeout, unlinkUnix, bindMask)); err != nil {
+			return err
+		}
 	}
 	for _, s := range getAllExOptionConfig(args, "DynamicForward") {
 		b, err := parseBindCfg(s)
 		if err != nil {
 			warning("parse dynamic forwarding failed: %v", err)
+			if exitOnFailure {
+				return err
+			}
 			continue
 		}
-		dynamicForward(sshConn, b, gateway, timeout, unlinkUnix, bindMask)
+		if err := handleFailure(dynamicForward(sshConn, b, gateway, timeout, unlinkUnix, bindMask)); err != nil {
+			return err
+		}
 	}
 
 	// local forward
 	for _, f := range args.LocalForward.cfgs {
-		localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
+		if err := handleFailure(localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)); err != nil {
+			return err
+		}
 	}
 	for _, s := range getAllExOptionConfig(args, "LocalForward") {
 		f, err := parseForwardCfg(sshConn.param, s)
 		if err != nil {
 			warning("parse local forwarding failed: %v", err)
+			if exitOnFailure {
+				return err
+			}
 			continue
 		}
-		localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)
+		if err := handleFailure(localForward(sshConn, f, gateway, timeout, unlinkUnix, bindMask)); err != nil {
+			return err
+		}
 	}
 
 	// remote forward
 	for _, f := range args.RemoteForward.cfgs {
-		remoteForward(sshConn, f, gateway, timeout)
+		if err := handleFailure(remoteForward(sshConn, f, gateway, timeout)); err != nil {
+			return err
+		}
 	}
 	for _, s := range getAllExOptionConfig(args, "RemoteForward") {
 		f, err := parseForwardCfg(sshConn.param, s)
 		if err != nil {
 			warning("parse remote forwarding failed: %v", err)
+			if exitOnFailure {
+				return err
+			}
 			continue
 		}
-		remoteForward(sshConn, f, gateway, timeout)
+		if err := handleFailure(remoteForward(sshConn, f, gateway, timeout)); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func forwardChannel(channel ssh.Channel, conn net.Conn) {
@@ -381,42 +411,51 @@ func forwardChannel(channel ssh.Channel, conn net.Conn) {
 	_ = channel.Close()
 }
 
-func subsystemForward(client SshClient, name string) error {
-	session, err := client.NewSession()
-	if err != nil {
-		return fmt.Errorf("new session for subsystem [%s] failed: %v", name, err)
+func subsystemForward(client SshClient, name string) (int, error) {
+	opener, ok := client.(interface {
+		OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error)
+	})
+	if !ok {
+		return 0, fmt.Errorf("client does not support subsystem channels")
 	}
-	defer func() { _ = session.Close() }()
-	serverIn, err := session.StdinPipe()
+	channel, requests, err := opener.OpenChannel("session", nil)
 	if err != nil {
-		return fmt.Errorf("stdin pipe for subsystem [%s] failed: %v", name, err)
+		return 0, fmt.Errorf("open channel for subsystem [%s] failed: %w", name, err)
 	}
-	serverOut, err := session.StdoutPipe()
+	defer func() { _ = channel.Close() }()
+	requested, err := channel.SendRequest("subsystem", true, ssh.Marshal(struct{ Subsystem string }{name}))
 	if err != nil {
-		return fmt.Errorf("stdout pipe for subsystem [%s] failed: %v", name, err)
+		return 0, fmt.Errorf("request subsystem [%s] failed: %w", name, err)
 	}
-	serverErr, err := session.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe for subsystem [%s] failed: %v", name, err)
+	if !requested {
+		return 0, fmt.Errorf("request subsystem [%s] was rejected", name)
 	}
 
-	if err := session.RequestSubsystem(name); err != nil {
-		return fmt.Errorf("request subsystem [%s] failed: %v", name, err)
+	// A terminal may never send EOF. The remote exit must not wait for stdin.
+	stdin, stdout, stderr := os.Stdin, os.Stdout, os.Stderr
+	go func() {
+		_, _ = io.Copy(channel, stdin)
+		_ = channel.CloseWrite()
+	}()
+	var outputWG sync.WaitGroup
+	outputWG.Go(func() {
+		_, _ = io.Copy(stdout, channel)
+	})
+	outputWG.Go(func() {
+		_, _ = io.Copy(stderr, channel.Stderr())
+	})
+	status := -1
+	for request := range requests {
+		if request.Type == "exit-status" && len(request.Payload) >= 4 {
+			status = int(binary.BigEndian.Uint32(request.Payload[:4]))
+		}
+		if request.WantReply {
+			_ = request.Reply(false, nil)
+		}
 	}
-
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		_, _ = io.Copy(serverIn, os.Stdin)
-		_ = serverIn.Close()
-	})
-	wg.Go(func() {
-		_, _ = io.Copy(os.Stdout, serverOut)
-		_ = os.Stdout.Close()
-	})
-	wg.Go(func() {
-		_, _ = io.Copy(os.Stderr, serverErr)
-		_ = os.Stderr.Close()
-	})
-	wg.Wait()
-	return nil
+	outputWG.Wait()
+	if status < 0 {
+		return 0, fmt.Errorf("subsystem [%s] exited without a status", name)
+	}
+	return status, nil
 }

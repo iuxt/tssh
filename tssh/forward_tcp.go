@@ -184,7 +184,7 @@ func (d sshResolver) Resolve(ctx context.Context, name string) (context.Context,
 	return ctx, []byte{}, nil
 }
 
-func dynamicForward(sshConn *sshConnection, b *bindCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) {
+func dynamicForward(sshConn *sshConnection, b *bindCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) error {
 	var dialError = errors.New("DIAL_ERROR_" + uuid.NewString())
 	server, err := socks5.New(&socks5.Config{
 		Resolver: &sshResolver{},
@@ -204,11 +204,15 @@ func dynamicForward(sshConn *sshConnection, b *bindCfg, gateway bool, timeout ti
 	})
 	if err != nil {
 		warning("dynamic forwarding [%v] failed: %v", b, err)
-		return
+		return err
 	}
 
 	name := fmt.Sprintf("dynamic forwarding [%v]", b)
-	for _, listener := range listenOnLocalTCP(gateway, b.addr, strconv.Itoa(b.port), name, unlinkUnix, bindMask) {
+	listeners := listenOnLocalTCP(gateway, b.addr, strconv.Itoa(b.port), name, unlinkUnix, bindMask)
+	if len(listeners) == 0 {
+		return fmt.Errorf("%s could not listen locally", name)
+	}
+	for _, listener := range listeners {
 		go func(listener net.Listener) {
 			defer func() { _ = listener.Close() }()
 			for {
@@ -247,9 +251,10 @@ func dynamicForward(sshConn *sshConnection, b *bindCfg, gateway bool, timeout ti
 			}
 		}(listener)
 	}
+	return nil
 }
 
-func localForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) {
+func localForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration, unlinkUnix bool, bindMask int) error {
 	var remoteNet, remoteAddr string
 	if f.destPort == -1 && strings.HasPrefix(f.destHost, "/") {
 		remoteNet = "unix"
@@ -260,7 +265,11 @@ func localForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeou
 	}
 
 	name := fmt.Sprintf("local forwarding [%v]", f)
-	for _, listener := range listenOnLocalTCP(gateway, f.bindAddr, strconv.Itoa(f.bindPort), name, unlinkUnix, bindMask) {
+	listeners := listenOnLocalTCP(gateway, f.bindAddr, strconv.Itoa(f.bindPort), name, unlinkUnix, bindMask)
+	if len(listeners) == 0 {
+		return fmt.Errorf("%s could not listen locally", name)
+	}
+	for _, listener := range listeners {
 		go func(listener net.Listener) {
 			defer func() { _ = listener.Close() }()
 			for {
@@ -287,9 +296,10 @@ func localForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeou
 			}
 		}(listener)
 	}
+	return nil
 }
 
-func remoteForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration) {
+func remoteForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeout time.Duration) error {
 	var localNet, localAddr string
 	if f.destPort == -1 && strings.HasPrefix(f.destHost, "/") {
 		localNet = "unix"
@@ -299,7 +309,11 @@ func remoteForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeo
 		localAddr = joinHostPort(f.destHost, strconv.Itoa(f.destPort))
 	}
 
-	for _, listener := range listenOnRemoteTCP(gateway, sshConn.client, f) {
+	listeners := listenOnRemoteTCP(gateway, sshConn.client, f)
+	if len(listeners) == 0 {
+		return fmt.Errorf("remote forwarding [%v] could not listen remotely", f)
+	}
+	for _, listener := range listeners {
 		go func(listener net.Listener) {
 			defer func() { _ = listener.Close() }()
 			for {
@@ -322,6 +336,7 @@ func remoteForwardTCP(sshConn *sshConnection, f *forwardCfg, gateway bool, timeo
 			}
 		}(listener)
 	}
+	return nil
 }
 
 func tcpForward(local, remote net.Conn) {

@@ -109,7 +109,7 @@ func getSendEnvs(args *sshArgs) ([]*sshEnv, error) {
 }
 
 func getSetEnvs(args *sshArgs) ([]*sshEnv, error) {
-	setEnvs := getOptionConfigSplits(args, "SetEnv")
+	setEnvs := getAllOptionConfigSplits(args, "SetEnv")
 	if len(setEnvs) == 0 {
 		return nil, nil
 	}

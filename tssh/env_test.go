@@ -25,6 +25,8 @@ SOFTWARE.
 package tssh
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,4 +51,20 @@ func TestEnvironmentValuesKeepWhitespace(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, set, 1)
 	assert.Equal(t, "  spaced  ", set[0].value)
+}
+
+func TestSetEnvCollectsRepeatedOptionsAndConfig(t *testing.T) {
+	previous := userConfig
+	defer func() { userConfig = previous }()
+	configPath := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, os.WriteFile(configPath, []byte("Host host\n  SetEnv FROM_CONFIG=one\n  SetEnv SECOND_CONFIG=two\n"), 0600))
+	userConfig = &tsshConfig{configPath: configPath}
+	args := &sshArgs{Destination: "host", Option: sshOption{options: map[string][]string{
+		"setenv": {"FROM_OPTION=three", "SECOND_OPTION=four"},
+	}}}
+	values, err := getSetEnvs(args)
+	require.NoError(t, err)
+	require.Len(t, values, 4)
+	assert.Equal(t, []string{"FROM_OPTION", "SECOND_OPTION", "FROM_CONFIG", "SECOND_CONFIG"},
+		[]string{values[0].name, values[1].name, values[2].name, values[3].name})
 }
