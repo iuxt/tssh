@@ -118,6 +118,15 @@ func (p *sshPrompt) detailLines() []string {
 		entries = getPromptConfigEntries(host, p.config)
 		p.detailCache[host] = entries
 	}
+	if !p.showAllConfig {
+		configured := make([]promptConfigEntry, 0, len(entries))
+		for _, entry := range entries {
+			if entry.source != "默认" {
+				configured = append(configured, entry)
+			}
+		}
+		entries = configured
+	}
 	_, width := p.panelWidths()
 	if width == 0 && p.detailFocus {
 		width = max(1, p.width)
@@ -130,6 +139,11 @@ func (p *sshPrompt) detailHeading(lines int) string {
 	if p.detailFocus {
 		prefix = "› 连接详情"
 	}
+	if p.showAllConfig {
+		prefix += "·全部"
+	} else {
+		prefix += "·已配置"
+	}
 	if lines == 0 {
 		return prefix
 	}
@@ -140,8 +154,9 @@ func (p *sshPrompt) detailHeading(lines int) string {
 func promptHelp(width int) []string {
 	entries := []string{
 		"查看配置  F2 切换主机列表 / 连接详情；窄屏时详情单独显示",
+		"全部配置  F3 切换已配置项 / 全部配置；默认只显示已配置项",
 		"滚动详情  切到详情后，↑↓ 滚动、←→ / PageUp / PageDown 翻页、Home / End 首尾，Esc 返回",
-		"配置来源  配置 / 扩展配置表示已填写的值，默认表示程序默认值；未设置的字段也会列出",
+		"配置来源  配置 / 扩展配置表示已填写的值；全部配置还包含程序默认值和未设置的字段",
 		"确认连接  Enter（搜索时先锁定关键词，再按一次连接）",
 		"退出界面  Ctrl+C / Ctrl+Q；浏览时也可按 q / Q",
 		"上一主机  ↑ / Shift+Tab / Ctrl+K；浏览时也可按 k / K",
@@ -180,9 +195,13 @@ func (p *sshPrompt) View() tea.View {
 		}
 	}
 	lines := []string{title, search, ""}
-	footer := "↑↓选择 /搜索 Enter连接 F2详情 ?帮助 q退出"
+	configShortcut := "F3全部"
+	if p.showAllConfig {
+		configShortcut = "F3已配置"
+	}
+	footer := "F2详情 " + configShortcut + " ↑↓选择 /搜索 Enter连接 ?帮助 q退出"
 	if width < 76 {
-		footer = "↑↓选择 /搜索 ↵连接 F2详情 ?帮助 q退出"
+		footer = "F2详情 " + configShortcut + " ↑↓选择 /搜索 ↵连接 ?帮助 q退出"
 	}
 	if p.search {
 		footer = "↑↓ 选择  Enter 锁定  Esc 取消  Ctrl+E 清空"
@@ -265,7 +284,7 @@ func (p *sshPrompt) View() tea.View {
 		}
 	}
 	if p.detailFocus && !p.showShortcuts {
-		footer = "↑↓滚动 ←→翻页 Home/End首尾 F2/Esc返回"
+		footer = configShortcut + " ↑↓滚动 ←→翻页 Home/End首尾 F2/Esc返回"
 	}
 	lines = append(lines, "", promptColor(promptMuted, footer))
 	// Extremely small terminals still receive a bounded, useful view.

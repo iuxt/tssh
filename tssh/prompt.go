@@ -51,6 +51,7 @@ type sshPrompt struct {
 	helpOffset            int
 	detailOffset          int
 	detailFocus           bool
+	showAllConfig         bool
 	config                *tsshConfig
 	detailCache           map[*sshHost][]promptConfigEntry
 	width, height         int
@@ -196,6 +197,11 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f2":
 			if !p.showShortcuts {
 				p.detailFocus = !p.detailFocus
+			}
+		case "f3":
+			if !p.showShortcuts {
+				p.showAllConfig = !p.showAllConfig
+				p.detailOffset = 0
 			}
 		case "ctrl+e":
 			p.clearSearch()

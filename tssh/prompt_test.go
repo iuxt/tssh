@@ -33,6 +33,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trzsz/ssh_config"
 )
 
 func promptTestHosts() []*sshHost {
@@ -48,6 +49,8 @@ func pressPrompt(p *sshPrompt, key string) tea.Cmd {
 	switch key {
 	case "f2":
 		msg.Code = tea.KeyF2
+	case "f3":
+		msg.Code = tea.KeyF3
 	case "enter":
 		msg.Code = tea.KeyEnter
 	case "esc":
@@ -246,6 +249,7 @@ func TestPromptHelpPreservesSearch(t *testing.T) {
 func TestPromptDetailsScrolling(t *testing.T) {
 	p := newSSHPrompt(promptTestHosts(), "")
 	p.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	pressPrompt(p, "f3")
 	lines := p.detailLines()
 	require.Greater(t, len(lines), p.pageSize())
 	pressPrompt(p, "f2")
@@ -277,6 +281,62 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	pressPrompt(p, "f2")
 	assert.False(t, p.detailFocus)
 	assert.Contains(t, ansi.Strip(p.View().Content), "主机名称")
+}
+
+func TestPromptConfiguredDetailsAndToggle(t *testing.T) {
+	main, err := ssh_config.Decode(strings.NewReader(`Host *
+    User deploy
+    Port 22
+Host 开发环境
+    HostName dev.example.com
+`))
+	require.NoError(t, err)
+	extra, err := ssh_config.Decode(strings.NewReader(`Host *
+    EnableZmodem no
+    Password secret-value
+`))
+	require.NoError(t, err)
+	for _, width := range []int{100, 40} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			p := newSSHPrompt(promptTestHosts(), "")
+			p.config = &tsshConfig{config: main, exConfig: extra}
+			p.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+			pressPrompt(p, "f2")
+			configured := ansi.Strip(strings.Join(p.detailLines(), "\n"))
+			assert.Contains(t, configured, "主机别名")
+			assert.Contains(t, configured, "Port（配置）")
+			assert.Contains(t, configured, "User（配置）")
+			assert.Contains(t, configured, "EnableZmodem（扩展配置）")
+			assert.Contains(t, configured, "Password（扩展配置）")
+			assert.NotContains(t, configured, "secret-value")
+			assert.NotContains(t, configured, "默认")
+			assert.NotContains(t, configured, "未设置")
+			assert.Contains(t, ansi.Strip(p.View().Content), "F3全部")
+
+			pressPrompt(p, "f3")
+			all := ansi.Strip(strings.Join(p.detailLines(), "\n"))
+			assert.Contains(t, all, "默认")
+			assert.Contains(t, all, "未设置")
+			pressPrompt(p, "end")
+			require.Positive(t, p.detailOffset)
+			pressPrompt(p, "f3")
+			assert.Zero(t, p.detailOffset)
+			assert.Equal(t, configured, ansi.Strip(strings.Join(p.detailLines(), "\n")))
+
+			pressPrompt(p, "esc")
+			pressPrompt(p, "down")
+			assert.NotContains(t, ansi.Strip(strings.Join(p.detailLines(), "\n")), "默认")
+			pressPrompt(p, "/")
+			pressPrompt(p, "华东")
+			pressPrompt(p, "f3")
+			assert.True(t, p.showAllConfig)
+			assert.True(t, p.search)
+			assert.Equal(t, "华东", p.query)
+			pressPrompt(p, "?")
+			pressPrompt(p, "f3")
+			assert.True(t, p.showAllConfig, "help must not toggle config visibility")
+		})
+	}
 }
 
 func TestPromptDetailsNeverTruncateValues(t *testing.T) {
