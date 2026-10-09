@@ -308,7 +308,7 @@ func (p *sshPrompt) View() tea.View {
 					if p.detailFocus {
 						left = promptColor("1", left)
 					} else {
-						left = promptColor(promptAccent, left)
+						left = promptColor(promptActive, fitPromptText(left, leftWidth))
 					}
 				}
 			} else if len(p.visible) == 0 {
