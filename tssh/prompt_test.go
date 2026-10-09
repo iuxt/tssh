@@ -148,7 +148,7 @@ func TestPromptSearchEditingAndPaste(t *testing.T) {
 func TestPromptNavigationAndResize(t *testing.T) {
 	hosts := make([]*sshHost, 40)
 	for i := range hosts {
-		hosts[i] = &sshHost{Alias: fmt.Sprintf("主机%02d", i)}
+		hosts[i] = &sshHost{Alias: fmt.Sprintf("主机%02d", i), GroupLabels: "生产 华东"}
 	}
 	p := newSSHPrompt(hosts, "")
 	p.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
@@ -165,6 +165,22 @@ func TestPromptNavigationAndResize(t *testing.T) {
 	pressPrompt(p, "home")
 	pressPrompt(p, "up")
 	assert.Equal(t, 0, p.cursor)
+}
+
+func TestPromptLabeledHostsStayFlat(t *testing.T) {
+	p := newSSHPrompt(promptTestHosts(), "")
+	p.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	plain := ansi.Strip(p.View().Content)
+	for _, host := range promptTestHosts() {
+		assert.Equal(t, 1, strings.Count(plain, host.Alias))
+	}
+	assert.NotContains(t, plain, "[+]")
+	assert.NotContains(t, plain, "[-]")
+	assert.NotContains(t, plain, "折叠")
+	pressPrompt(p, "space")
+	assert.Equal(t, "开发环境", p.currentHost().Alias)
+	assert.NotNil(t, pressPrompt(p, "enter"))
+	assert.Equal(t, "开发环境", p.selected.Alias)
 }
 
 func TestPromptResponsiveChineseLayout(t *testing.T) {
@@ -272,7 +288,7 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	pressPrompt(p, "home")
 	assert.Zero(t, p.detailOffset)
 	pressPrompt(p, "esc")
-	p.selectAlias("数据库")
+	pressPrompt(p, "down")
 	assert.Equal(t, "数据库", p.currentHost().Alias)
 	assert.Zero(t, p.detailOffset)
 	pressPrompt(p, "v")

@@ -42,16 +42,11 @@ func TestPromptMouseClicksIgnored(t *testing.T) {
 			_, cmd := p.Update(tea.MouseClickMsg{X: point[0], Y: point[1], Button: button})
 			assert.Nil(t, cmd)
 			assert.Equal(t, cursor, p.cursor)
-			assert.Empty(t, p.collapsed)
 			assert.False(t, p.search)
 			assert.False(t, p.detailFocus)
 			assert.Nil(t, p.selected)
 		}
 	}
-	pressPrompt(p, "left")
-	assert.True(t, p.collapsed["开发"], "keyboard folding is still available")
-	pressPrompt(p, "enter")
-	assert.False(t, p.collapsed["开发"])
 }
 
 func TestPromptMouseWheelPanelsHelpAndSearch(t *testing.T) {
@@ -71,7 +66,7 @@ func TestPromptMouseWheelPanelsHelpAndSearch(t *testing.T) {
 	assert.Zero(t, p.detailOffset)
 	p.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
 	assert.False(t, p.detailFocus)
-	assert.Equal(t, "数据库", p.currentHost().Alias)
+	assert.Equal(t, "production-europe-primary", p.currentHost().Alias)
 	pressPrompt(p, "?")
 	cursor := p.cursor
 	p.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
@@ -113,11 +108,11 @@ func TestPromptLegacyWindowsKeyboardFallback(t *testing.T) {
 	p.Update(tea.MouseWheelMsg{X: 5, Y: 6, Button: tea.MouseWheelDown})
 	assert.Equal(t, "开发环境", p.currentHost().Alias)
 	pressPrompt(p, "left")
-	assert.True(t, p.collapsed["开发"])
+	assert.Zero(t, p.cursor)
 	pressPrompt(p, "right")
-	pressPrompt(p, "down")
+	assert.Equal(t, 2, p.cursor)
 	assert.NotNil(t, pressPrompt(p, "enter"))
-	assert.Equal(t, "开发环境", p.selected.Alias)
+	assert.Equal(t, "production-europe-primary", p.selected.Alias)
 }
 
 func TestPromptMouseEditorWheelAndIgnoredClicks(t *testing.T) {

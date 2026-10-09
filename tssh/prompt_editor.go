@@ -391,7 +391,12 @@ func (p *sshPrompt) saveEditor() {
 	p.hosts = getAllHosts()
 	p.detailCache = nil
 	p.clearSearch()
-	p.selectAlias(alias)
+	for i, host := range p.visible {
+		if host.Alias == alias {
+			p.cursor = i
+			break
+		}
+	}
 	p.editor = nil
 	p.detailFocus = false
 	p.notice = "已保存：" + alias
@@ -430,7 +435,12 @@ func (e *hostConfigEditor) displayValue(index, width int) string {
 	return fitPromptText(ansi.Truncate(before+"▏"+after, width, ""), width)
 }
 
-func (e *hostConfigEditor) formRows(width, height int) []string {
+type editorFormRow struct {
+	text, group string
+	field       int // -1 for headings and blank rows
+}
+
+func (e *hostConfigEditor) formLayout(width, height int) []editorFormRow {
 	labelWidth, keyWidth := 0, 0
 	for _, field := range hostEditorFields {
 		labelWidth = max(labelWidth, ansi.StringWidth(field.label))
@@ -442,11 +452,7 @@ func (e *hostConfigEditor) formRows(width, height int) []string {
 	if keyWidth > 0 {
 		valueWidth -= keyWidth + 2
 	}
-	type formRow struct {
-		text, group string
-		heading     bool
-	}
-	var all []formRow
+	var all []editorFormRow
 	group, focusRow := "", 0
 	groupHeading := func(group string) string {
 		text := " " + group + " "
@@ -455,7 +461,7 @@ func (e *hostConfigEditor) formRows(width, height int) []string {
 	for i, field := range hostEditorFields {
 		if field.group != group {
 			group = field.group
-			all = append(all, formRow{groupHeading(group), group, true})
+			all = append(all, editorFormRow{groupHeading(group), group, -1})
 		}
 		prefix := "  "
 		if i == e.focus {
@@ -471,28 +477,37 @@ func (e *hostConfigEditor) formRows(width, height int) []string {
 			// Strip nested styles so the focus background spans every column.
 			line = promptColor(promptActive, ansi.Strip(line))
 		}
-		all = append(all, formRow{line, group, false})
+		all = append(all, editorFormRow{line, group, i})
 	}
 	if height == 1 {
-		return []string{all[focusRow].text}
+		return []editorFormRow{all[focusRow]}
 	}
 	start := max(0, min(focusRow-height/2, len(all)-height))
-	var lines []string
-	if !all[start].heading {
+	var lines []editorFormRow
+	if all[start].field >= 0 {
 		// Keep a group heading visible when the viewport begins within a group.
 		start = max(start, focusRow-height+2)
-		if !all[start].heading {
-			lines = append(lines, groupHeading(all[start].group))
+		if all[start].field >= 0 {
+			lines = append(lines, editorFormRow{groupHeading(all[start].group), all[start].group, -1})
 		}
 	}
 	for i := start; i < len(all) && len(lines) < height; i++ {
-		if all[i].heading && len(lines) == height-1 {
+		if all[i].field < 0 && len(lines) == height-1 {
 			break
 		}
-		lines = append(lines, all[i].text)
+		lines = append(lines, all[i])
 	}
 	for len(lines) < height {
-		lines = append(lines, "")
+		lines = append(lines, editorFormRow{field: -1})
+	}
+	return lines
+}
+
+func (e *hostConfigEditor) formRows(width, height int) []string {
+	layout := e.formLayout(width, height)
+	lines := make([]string, len(layout))
+	for i, row := range layout {
+		lines[i] = row.text
 	}
 	return lines
 }
