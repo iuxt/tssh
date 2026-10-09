@@ -277,6 +277,77 @@ func TestPromptEditorUnicodeKeysPasteCancelAndLayout(t *testing.T) {
 	assert.Equal(t, "ubuntu", getConfig("server", "User"))
 }
 
+func TestPromptEditorAlignedColumnsAndFocus(t *testing.T) {
+	p, _ := editorTestPrompt(t, "Host 开发主机\n User root\n")
+	for _, create := range []bool{false, true} {
+		p.openEditor(create)
+		require.NotNil(t, p.editor)
+		for _, size := range [][2]int{{40, 12}, {80, 24}, {96, 24}, {120, 30}, {160, 50}} {
+			p.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			for focus, field := range hostEditorFields {
+				p.editor.focus, p.editor.caret = focus, len([]rune(p.editor.values[focus]))
+				lines := strings.Split(ansi.Strip(p.editorView().Content), "\n")
+				require.Len(t, lines, size[1])
+				column, foundFocus := -1, false
+				for _, line := range lines {
+					assert.Equal(t, size[0], ansi.StringWidth(line))
+					if !strings.HasPrefix(strings.TrimSpace(line), "│") {
+						continue
+					}
+					assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "│"))
+					if strings.Count(line, "│") < 3 {
+						continue
+					}
+					before, _, ok := strings.Cut(strings.TrimLeft(line, " "), " │ ")
+					if !ok {
+						continue
+					}
+					if column < 0 {
+						column = ansi.StringWidth(before)
+					}
+					require.Equal(t, column, ansi.StringWidth(before), "labels must align across groups")
+					if strings.Contains(before, "› "+field.label) {
+						foundFocus = true
+						assert.Contains(t, line, "▏", "focused input must retain its caret")
+						if size[0] >= 96 {
+							assert.Contains(t, line, field.key)
+						}
+					}
+				}
+				require.True(t, foundFocus, "focused field %s must remain in the viewport at %v", field.key, size)
+				assert.Contains(t, strings.Join(lines[4:len(lines)-6], "\n"), field.group)
+				assert.Contains(t, lines[len(lines)-2], "Ctrl+S 保存")
+				assert.Contains(t, lines[len(lines)-2], "Esc 取消")
+			}
+		}
+		p.editor.err = "请输入有效的 SSH 端口"
+		assert.Contains(t, ansi.Strip(p.editorView().Content), p.editor.err)
+	}
+}
+
+func TestPromptEditorCaretVisibleWithLongUnicodeValues(t *testing.T) {
+	p, _ := editorTestPrompt(t, "")
+	p.openEditor(true)
+	for _, key := range []string{"Host", "IdentityFile", "Password", "PasswordCommand"} {
+		for _, value := range []string{"", "中文路径/" + strings.Repeat("长目录/", 20) + "🔑e\u0301", "first\n第二条\nlast"} {
+			setEditorField(t, p.editor, key, value)
+			for _, width := range []int{1, 2, 3, 8, 15, 40} {
+				for caret := 0; caret <= len([]rune(p.editor.values[p.editor.focus])); caret++ {
+					p.editor.caret = caret
+					rendered := ansi.Strip(p.editor.displayValue(p.editor.focus, width))
+					assert.Equal(t, width, ansi.StringWidth(rendered))
+					assert.Contains(t, rendered, "▏", "caret %d at width %d for %s", caret, width, key)
+					assert.NotContains(t, rendered, "\n")
+					if hostEditorFields[p.editor.focus].secret {
+						assert.NotContains(t, rendered, "中文")
+						assert.NotContains(t, rendered, "first")
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestHostConfigSymlinkAndNoOp(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation requires Windows privileges")

@@ -179,6 +179,9 @@ func (p *sshPrompt) detailHeading(lines int) string {
 
 func promptHelp(width int) []string {
 	entries := []string{
+		"主机分组  每个 GroupLabels 标签对应一个分组；无标签为未分组；主机可出现在多个分组，数量按主机去重",
+		"折叠分组  ← 折叠、→ 展开、Space 切换当前分组；组标题上 Enter 也可切换；搜索时自动展开匹配分组",
+		"滚轮操作  滚轮浏览指针所在面板和帮助，编辑表单中切换字段；鼠标点击不触发操作",
 		"管理配置  n / N 新增主机；e / E 编辑选中主机（浏览时）；Ctrl+S 保存，Esc 取消",
 		"填写表单  Tab / Shift+Tab 或 ↑↓ 切换字段；←→ / Home / End 移动输入光标；Ctrl+U 清空字段",
 		"多值配置  私钥与端口转发可用 Ctrl+N 添加一行，也可粘贴多行；留空使用继承值或默认值",
@@ -190,8 +193,8 @@ func promptHelp(width int) []string {
 		"退出界面  Ctrl+C / Ctrl+Q；浏览时也可按 q / Q",
 		"上一主机  ↑ / Shift+Tab / Ctrl+K；浏览时也可按 k / K",
 		"下一主机  ↓ / Tab / Ctrl+J；浏览时也可按 j / J",
-		"向上翻页  ← / PageUp / Ctrl+H / Ctrl+U / Ctrl+B；浏览时也可按 h / u / b（含大写）",
-		"向下翻页  → / PageDown / Ctrl+L / Ctrl+D / Ctrl+F；浏览时也可按 l / d / f（含大写）",
+		"向上翻页  PageUp / Ctrl+H / Ctrl+U / Ctrl+B；浏览时也可按 h / u / b（含大写）；无分组时也可用 ←",
+		"向下翻页  PageDown / Ctrl+L / Ctrl+D / Ctrl+F；浏览时也可按 l / d / f（含大写）；无分组时也可用 →",
 		"首尾主机  Home / End；浏览时也可按 g / G",
 		"搜索主机  / 开始搜索；匹配别名、地址和分组标签，空格分隔多个关键词",
 		"锁定筛选  Enter 锁定关键词；再按 / 可继续添加条件",
@@ -253,6 +256,9 @@ func (p *sshPrompt) View() tea.View {
 		}
 	}
 
+	if len(p.groups) > 0 && !p.filtering() && !p.detailFocus {
+		footer = promptShortcut("←→", "折叠/展开") + "  " + footer
+	}
 	if p.showShortcuts {
 		lines = append(lines, promptColor(promptAccent, "快捷键说明"), promptColor(promptMuted, strings.Repeat("─", width)))
 		help := promptHelp(width)
@@ -294,8 +300,8 @@ func (p *sshPrompt) View() tea.View {
 		for row := 0; row < rows; row++ {
 			left, right := "", ""
 			index := start + row
-			if index < len(p.visible) {
-				host := p.visible[index]
+			if index < len(p.rows) {
+				item := p.rows[index]
 				prefix := "   "
 				if index == p.cursor {
 					prefix = fitPromptText(promptCursorIcon, 2) + " "
@@ -303,12 +309,24 @@ func (p *sshPrompt) View() tea.View {
 						prefix = fitPromptText(promptSelectedIcon, 2) + " "
 					}
 				}
-				left = prefix + promptHostColumns(host.Alias, host.Host, leftWidth-3)
+				if item.host == nil {
+					marker := "[-] "
+					if p.groupCollapsed(item.group) {
+						marker = "[+] "
+					}
+					left = prefix + promptColor(promptAccent, fmt.Sprintf("%s%s (%d)", marker, promptGroupName(item.group), item.count))
+				} else {
+					indent := 0
+					if len(p.groups) > 0 && leftWidth >= 12 {
+						indent = 2
+					}
+					left = prefix + strings.Repeat(" ", indent) + promptHostColumns(item.host.Alias, item.host.Host, leftWidth-3-indent)
+				}
 				if index == p.cursor {
 					if p.detailFocus {
 						left = promptColor("1", left)
 					} else {
-						left = promptColor(promptActive, fitPromptText(left, leftWidth))
+						left = promptColor(promptActive, fitPromptText(ansi.Strip(left), leftWidth))
 					}
 				}
 			} else if len(p.visible) == 0 {
@@ -330,8 +348,8 @@ func (p *sshPrompt) View() tea.View {
 			}
 			lines = append(lines, join(left, right))
 		}
-		if len(p.visible) > 0 && !p.search && width >= 76 {
-			footer = fmt.Sprintf("%d/%d 页  ", p.cursor/rows+1, (len(p.visible)+rows-1)/rows) + footer
+		if len(p.rows) > 0 && !p.search && width >= 76 {
+			footer = fmt.Sprintf("%d/%d 页  ", p.cursor/rows+1, (len(p.rows)+rows-1)/rows) + footer
 		}
 	}
 	if p.detailFocus && !p.showShortcuts {
@@ -351,6 +369,8 @@ func (p *sshPrompt) View() tea.View {
 		lines = []string{title, search}
 		if host := p.currentHost(); host != nil {
 			lines = append(lines, promptCursorIcon+" "+host.Alias+"  "+host.Host)
+		} else if p.onGroupHeading() {
+			lines = append(lines, promptGroupName(p.rows[p.cursor].group)+"  Space 展开/折叠")
 		}
 		lines = append(lines, "Enter 连接  / 搜索  q 退出")
 	}
@@ -360,5 +380,6 @@ func (p *sshPrompt) View() tea.View {
 	}
 	view := tea.NewView(strings.Join(lines, "\n"))
 	view.AltScreen = true
+	view.MouseMode = promptMouseMode()
 	return view
 }

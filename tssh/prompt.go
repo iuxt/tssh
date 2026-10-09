@@ -47,6 +47,9 @@ const (
 type sshPrompt struct {
 	hosts                 []*sshHost
 	visible               []*sshHost
+	rows                  []promptRow
+	groups                []promptGroup
+	collapsed             map[string]bool
 	cursor                int
 	helpOffset            int
 	detailOffset          int
@@ -82,10 +85,10 @@ func calculatePromptPageSize(height int) int {
 func (p *sshPrompt) pageSize() int { return calculatePromptPageSize(p.height) }
 
 func (p *sshPrompt) currentHost() *sshHost {
-	if p.cursor < 0 || p.cursor >= len(p.visible) {
+	if p.cursor < 0 || p.cursor >= len(p.rows) {
 		return nil
 	}
-	return p.visible[p.cursor]
+	return p.rows[p.cursor].host
 }
 
 func matchHost(h *sshHost, keywords []string) bool {
@@ -106,7 +109,16 @@ func (p *sshPrompt) filterHosts() {
 			p.visible = append(p.visible, host)
 		}
 	}
+	p.buildGroups()
+	p.rebuildRows()
 	p.cursor, p.detailOffset = 0, 0
+	// Start on a host when available, so Enter still connects immediately.
+	for i, row := range p.rows {
+		if row.host != nil {
+			p.cursor = i
+			break
+		}
+	}
 }
 
 func (p *sshPrompt) move(offset int) {
@@ -119,7 +131,7 @@ func (p *sshPrompt) move(offset int) {
 		return
 	}
 	previous := p.cursor
-	p.cursor = max(0, min(p.cursor+offset, len(p.visible)-1))
+	p.cursor = max(0, min(p.cursor+offset, len(p.rows)-1))
 	if previous != p.cursor {
 		p.detailOffset = 0
 	}
@@ -139,7 +151,7 @@ func (p *sshPrompt) jump(end bool) {
 	} else {
 		p.cursor, p.detailOffset = 0, 0
 		if end {
-			p.cursor = max(0, len(p.visible)-1)
+			p.cursor = max(0, len(p.rows)-1)
 		}
 	}
 }
@@ -181,6 +193,8 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if p.search {
 			p.appendQuery(msg.Content)
 		}
+	case tea.MouseWheelMsg:
+		p.wheelPrompt(msg)
 	case tea.KeyPressMsg:
 		key := msg.String()
 		switch key {
@@ -191,9 +205,17 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.move(-1)
 		case "down", "tab", "ctrl+j":
 			p.move(1)
-		case "left", "pgup", "ctrl+h", "ctrl+u", "ctrl+b":
+		case "left", "right":
+			if !p.showShortcuts && !p.detailFocus && len(p.groups) > 0 && !p.filtering() {
+				p.setGroupCollapsed(key == "left")
+			} else if key == "left" {
+				p.move(-p.pageSize())
+			} else {
+				p.move(p.pageSize())
+			}
+		case "pgup", "ctrl+h", "ctrl+u", "ctrl+b":
 			p.move(-p.pageSize())
-		case "right", "pgdown", "ctrl+l", "ctrl+d", "ctrl+f":
+		case "pgdown", "ctrl+l", "ctrl+d", "ctrl+f":
 			p.move(p.pageSize())
 		case "home":
 			p.jump(false)
@@ -230,6 +252,10 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if p.showShortcuts {
 				break
 			}
+			if !p.detailFocus && !p.search && p.onGroupHeading() {
+				p.toggleGroup()
+				break
+			}
 			if p.currentHost() == nil {
 				break
 			}
@@ -253,6 +279,10 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				switch key {
+				case "space":
+					if !p.showShortcuts && !p.detailFocus {
+						p.toggleGroup()
+					}
 				case "n", "N", "e", "E":
 					if !p.showShortcuts {
 						p.openEditor(key == "n" || key == "N")

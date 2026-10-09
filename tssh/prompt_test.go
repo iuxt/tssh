@@ -51,6 +51,13 @@ func pressPrompt(p *sshPrompt, key string) tea.Cmd {
 		msg.Code = tea.KeyF2
 	case "f3":
 		msg.Code = tea.KeyF3
+	case "space":
+		msg.Code = tea.KeySpace
+		msg.Text = " "
+	case "pgdown":
+		msg.Code = tea.KeyPgDown
+	case "pgup":
+		msg.Code = tea.KeyPgUp
 	case "enter":
 		msg.Code = tea.KeyEnter
 	case "esc":
@@ -202,7 +209,7 @@ func TestPromptEmptyAndHelpStates(t *testing.T) {
 	assert.Nil(t, pressPrompt(p, "enter"), "help must not start a connection")
 	pressPrompt(p, "end")
 	assert.Contains(t, ansi.Strip(p.View().Content), "关闭帮助")
-	assert.Equal(t, 0, p.cursor)
+	assert.Equal(t, "开发环境", p.currentHost().Alias)
 	pressPrompt(p, "esc")
 	assert.False(t, p.showShortcuts)
 }
@@ -256,7 +263,7 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	assert.True(t, p.detailFocus)
 	pressPrompt(p, "right")
 	assert.Equal(t, p.pageSize(), p.detailOffset)
-	assert.Equal(t, 0, p.cursor)
+	assert.Equal(t, "开发环境", p.currentHost().Alias)
 	pressPrompt(p, "end")
 	assert.Equal(t, len(lines)-p.pageSize(), p.detailOffset)
 	assert.Contains(t, ansi.Strip(p.View().Content), ansi.Strip(lines[len(lines)-1]))
@@ -265,8 +272,8 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	pressPrompt(p, "home")
 	assert.Zero(t, p.detailOffset)
 	pressPrompt(p, "esc")
-	pressPrompt(p, "down")
-	assert.Equal(t, 1, p.cursor)
+	p.selectAlias("数据库")
+	assert.Equal(t, "数据库", p.currentHost().Alias)
 	assert.Zero(t, p.detailOffset)
 	pressPrompt(p, "v")
 	pressPrompt(p, "end")

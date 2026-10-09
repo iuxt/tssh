@@ -174,6 +174,8 @@ func (p *sshPrompt) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.width, p.height = max(1, msg.Width), max(1, msg.Height)
 	case tea.PasteMsg:
 		e.insert(msg.Content)
+	case tea.MouseWheelMsg:
+		p.wheelEditor(msg)
 	case tea.KeyPressMsg:
 		e.err = ""
 		key := msg.String()
@@ -389,15 +391,110 @@ func (p *sshPrompt) saveEditor() {
 	p.hosts = getAllHosts()
 	p.detailCache = nil
 	p.clearSearch()
-	for i, host := range p.visible {
-		if host.Alias == alias {
-			p.cursor = i
-			break
-		}
-	}
+	p.selectAlias(alias)
 	p.editor = nil
 	p.detailFocus = false
 	p.notice = "已保存：" + alias
+}
+
+func (e *hostConfigEditor) displayValue(index, width int) string {
+	field := hostEditorFields[index]
+	value := e.values[index]
+	if field.secret {
+		value = strings.Repeat("•", len([]rune(value)))
+	}
+	if value == "" {
+		value = "（未设置）"
+		if field.key == "Password" && !e.passwordChanged && e.block >= 0 {
+			block := e.document.blocks[e.block]
+			if len(block.values["password"]) > 0 || len(block.values["encpassword"]) > 0 {
+				value = "（已设置，输入替换）"
+			}
+		}
+		if index == e.focus {
+			return "▏" + fitPromptText(value, max(0, width-1))
+		}
+		return promptColor(promptMuted, fitPromptText(value, width))
+	}
+	if index != e.focus {
+		return fitPromptText(strings.ReplaceAll(value, "\n", " ⏎ "), width)
+	}
+	chars := []rune(value)
+	before := strings.ReplaceAll(string(chars[:e.caret]), "\n", " ⏎ ")
+	after := strings.ReplaceAll(string(chars[e.caret:]), "\n", " ⏎ ")
+	// Reserve a cell for the caret, including at the end of a long CJK path.
+	if ansi.StringWidth(before) >= width {
+		before = ansi.TruncateLeft(before, ansi.StringWidth(before)-max(0, (width-2)/2), "…")
+	}
+	before = ansi.Truncate(before, max(0, width-1), "")
+	return fitPromptText(ansi.Truncate(before+"▏"+after, width, ""), width)
+}
+
+func (e *hostConfigEditor) formRows(width, height int) []string {
+	labelWidth, keyWidth := 0, 0
+	for _, field := range hostEditorFields {
+		labelWidth = max(labelWidth, ansi.StringWidth(field.label))
+		if width >= 90 {
+			keyWidth = max(keyWidth, ansi.StringWidth(field.key))
+		}
+	}
+	valueWidth := width - 2 - labelWidth - 3
+	if keyWidth > 0 {
+		valueWidth -= keyWidth + 2
+	}
+	type formRow struct {
+		text, group string
+		heading     bool
+	}
+	var all []formRow
+	group, focusRow := "", 0
+	groupHeading := func(group string) string {
+		text := " " + group + " "
+		return promptColor(promptAccent, text+strings.Repeat("─", max(0, width-ansi.StringWidth(text))))
+	}
+	for i, field := range hostEditorFields {
+		if field.group != group {
+			group = field.group
+			all = append(all, formRow{groupHeading(group), group, true})
+		}
+		prefix := "  "
+		if i == e.focus {
+			prefix = "› "
+			focusRow = len(all)
+		}
+		line := prefix + fitPromptText(field.label, labelWidth) + " │ "
+		if keyWidth > 0 {
+			line += promptColor(promptMuted, fitPromptText(field.key, keyWidth)) + "  "
+		}
+		line += e.displayValue(i, valueWidth)
+		if i == e.focus {
+			// Strip nested styles so the focus background spans every column.
+			line = promptColor(promptActive, ansi.Strip(line))
+		}
+		all = append(all, formRow{line, group, false})
+	}
+	if height == 1 {
+		return []string{all[focusRow].text}
+	}
+	start := max(0, min(focusRow-height/2, len(all)-height))
+	var lines []string
+	if !all[start].heading {
+		// Keep a group heading visible when the viewport begins within a group.
+		start = max(start, focusRow-height+2)
+		if !all[start].heading {
+			lines = append(lines, groupHeading(all[start].group))
+		}
+	}
+	for i := start; i < len(all) && len(lines) < height; i++ {
+		if all[i].heading && len(lines) == height-1 {
+			break
+		}
+		lines = append(lines, all[i].text)
+	}
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	return lines
 }
 
 func (p *sshPrompt) editorView() tea.View {
@@ -408,67 +505,58 @@ func (p *sshPrompt) editorView() tea.View {
 		title = "编辑主机配置 · " + e.alias
 	}
 	field := hostEditorFields[e.focus]
-	lines := []string{promptColor(promptAccent, title), "文件：" + e.document.path,
-		promptColor(promptMuted, "仅修改此 Host；留空继承配置。扩展 password 文件优先。"), ""}
-	// One row per field keeps focus reachable even on small terminals.
-	rows := max(1, height-9)
-	start := max(0, min(e.focus-rows/2, len(hostEditorFields)-rows))
-	for i := start; i < min(start+rows, len(hostEditorFields)); i++ {
-		f := hostEditorFields[i]
-		value := e.values[i]
-		if f.secret {
-			value = strings.Repeat("•", len([]rune(value)))
-		}
-		if value == "" {
-			value = "（未设置）"
-			if f.key == "Password" && !e.passwordChanged && e.block >= 0 {
-				b := e.document.blocks[e.block]
-				if len(b.values["password"]) > 0 || len(b.values["encpassword"]) > 0 {
-					value = "（已设置，输入替换）"
-				}
-			}
-		}
-		prefix := "  "
-		if i == e.focus {
-			prefix = "› "
-			if e.values[i] != "" {
-				chars := []rune(e.values[i])
-				if f.secret {
-					chars = []rune(strings.Repeat("•", len(chars)))
-				}
-				// Shift the visible input left with the cursor; do not lose long paths.
-				before, after := string(chars[:e.caret]), string(chars[e.caret:])
-				before = strings.ReplaceAll(before, "\n", " ⏎ ")
-				after = strings.ReplaceAll(after, "\n", " ⏎ ")
-				available := max(1, width-ansi.StringWidth(prefix+f.label+"：")-1)
-				value = ansi.TruncateLeft(before, max(0, ansi.StringWidth(before)-available/2), "…") + "▏" + after
-			} else {
-				value = "▏" + value
-			}
-		}
-		line := prefix + f.label + "：" + strings.ReplaceAll(value, "\n", " ⏎ ")
-		if i == e.focus {
-			line = promptColor(promptActive, fitPromptText(line, width))
-		}
-		lines = append(lines, line)
-	}
-	lines = append(lines, "", fmt.Sprintf("%s · %s  %d/%d", field.group, field.key, e.focus+1, len(hostEditorFields)),
-		field.hint, "Ctrl+S 保存  Esc 取消  Tab/↑↓ 切换  Ctrl+U 清空")
+	hint, hintStyle := field.hint, promptMuted
 	if e.err != "" {
-		lines[len(lines)-2] = promptColor("1;31", e.err)
+		hint, hintStyle = e.err, "1;31"
 	}
-	if height < 10 {
-		focusLine := lines[min(4+e.focus-start, len(lines)-1)]
-		lines = []string{title, focusLine, field.hint, "Ctrl+S保存 Esc取消 Tab切换"}
-		if e.err != "" {
-			lines[2] = e.err
+	var lines []string
+	margin := 0
+	if width < 24 || height < 12 {
+		label := "› " + field.label + "："
+		lines = []string{promptColor(promptAccent, title),
+			label + e.displayValue(e.focus, max(1, width-ansi.StringWidth(label))),
+			promptColor(hintStyle, hint), "Ctrl+S保存 Esc取消 Tab切换"}
+	} else {
+		panelWidth := min(width, 112)
+		margin = (width - panelWidth) / 2
+		innerWidth := panelWidth - 4
+		position := fmt.Sprintf("%d / %d", e.focus+1, len(hostEditorFields))
+		titleWidth := panelWidth - ansi.StringWidth(position) - 2
+		lines = []string{promptColor(promptAccent, fitPromptText(title, titleWidth)) + "  " + promptColor(promptMuted, position),
+			promptColor(promptMuted, "文件："+truncatePromptMiddle(e.document.path, panelWidth-6)),
+			promptColor(promptMuted, "仅修改此 Host · 留空继承配置 · 扩展 password 文件优先")}
+		border := func(left, right string) string {
+			return promptColor(promptMuted, left+strings.Repeat("─", panelWidth-2)+right)
 		}
+		lines = append(lines, border("╭", "╮"))
+		for _, row := range e.formRows(innerWidth, height-10) {
+			lines = append(lines, promptColor(promptMuted, "│ ")+fitPromptText(row, innerWidth)+promptColor(promptMuted, " │"))
+		}
+		lines = append(lines, border("╰", "╯"), promptColor(promptAccent, field.group+" · "+field.label)+promptColor(promptMuted, "  "+field.key))
+		hints := strings.Split(ansi.Hardwrap(hint, panelWidth, true), "\n")
+		for i := 0; i < 2; i++ {
+			line := ""
+			if i < len(hints) {
+				line = hints[i]
+			}
+			lines = append(lines, promptColor(hintStyle, line))
+		}
+		lines = append(lines, promptShortcut("Ctrl+S", "保存")+"  "+promptShortcut("Esc", "取消"))
+		keys := "Tab/↑↓ 切换  ←→ 移动  Ctrl+U 清空"
+		if field.multi {
+			keys = "Tab/↑↓ 切换  Ctrl+U 清空  Ctrl+N 添加一行"
+			if panelWidth < 50 {
+				keys = "Tab切换 Ctrl+U清空 Ctrl+N换行"
+			}
+		}
+		lines = append(lines, promptColor(promptMuted, keys))
 	}
 	lines = lines[:min(len(lines), height)]
 	for i := range lines {
-		lines[i] = fitPromptText(lines[i], width)
+		lines[i] = fitPromptText(strings.Repeat(" ", margin)+lines[i], width)
 	}
 	view := tea.NewView(strings.Join(lines, "\n"))
 	view.AltScreen = true
+	view.MouseMode = promptMouseMode()
 	return view
 }
