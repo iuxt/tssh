@@ -252,7 +252,7 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	pressPrompt(p, "f3")
 	lines := p.detailLines()
 	require.Greater(t, len(lines), p.pageSize())
-	pressPrompt(p, "f2")
+	pressPrompt(p, "v")
 	assert.True(t, p.detailFocus)
 	pressPrompt(p, "right")
 	assert.Equal(t, p.pageSize(), p.detailOffset)
@@ -268,7 +268,7 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	pressPrompt(p, "down")
 	assert.Equal(t, 1, p.cursor)
 	assert.Zero(t, p.detailOffset)
-	pressPrompt(p, "f2")
+	pressPrompt(p, "v")
 	pressPrompt(p, "end")
 	p.Update(tea.WindowSizeMsg{Width: 40, Height: 12})
 	narrow := p.View().Content
@@ -278,7 +278,7 @@ func TestPromptDetailsScrolling(t *testing.T) {
 	}
 	pressPrompt(p, "home")
 	assert.Contains(t, ansi.Strip(p.View().Content), "数据库")
-	pressPrompt(p, "f2")
+	pressPrompt(p, "v")
 	assert.False(t, p.detailFocus)
 	assert.Contains(t, ansi.Strip(p.View().Content), "主机名称")
 }
@@ -311,7 +311,7 @@ Host 开发环境
 			assert.NotContains(t, configured, "secret-value")
 			assert.NotContains(t, configured, "默认")
 			assert.NotContains(t, configured, "未设置")
-			assert.Contains(t, ansi.Strip(p.View().Content), "F3全部")
+			assert.Contains(t, ansi.Strip(p.View().Content), "a 全部")
 
 			pressPrompt(p, "f3")
 			all := ansi.Strip(strings.Join(p.detailLines(), "\n"))

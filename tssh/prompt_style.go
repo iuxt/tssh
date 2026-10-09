@@ -45,6 +45,20 @@ func promptColor(code, value string) string {
 	return "\033[" + code + "m" + value + "\033[0m"
 }
 
+func promptPanelTitle(value string, width int, focused bool) string {
+	style := promptMuted
+	marker := "○ "
+	if focused {
+		style = promptAccent
+		marker = "● "
+	}
+	return fitPromptText(promptColor(style, marker+value), width)
+}
+
+func promptShortcut(key, label string) string {
+	return promptColor("1", key) + promptColor(promptMuted, " "+label)
+}
+
 func fitPromptText(value string, width int) string {
 	if width <= 0 {
 		return ""
@@ -83,10 +97,25 @@ func promptDetails(entries []promptConfigEntry, width int) []string {
 		return []string{promptColor(promptMuted, "选择主机后查看连接信息")}
 	}
 	var lines []string
+	labelWidth := 0
 	for _, entry := range entries {
 		label := entry.key
 		if entry.source != "" {
 			label += "（" + entry.source + "）"
+		}
+		labelWidth = max(labelWidth, min(ansi.StringWidth(label), width/2))
+	}
+	for _, entry := range entries {
+		label := entry.key
+		if entry.source != "" {
+			label += "（" + entry.source + "）"
+		}
+		// Keep short values in aligned columns; long and multiline values still
+		// wrap in full beneath their labels so scrolling can reach every byte.
+		if width >= 40 && ansi.StringWidth(label) <= labelWidth && !strings.Contains(entry.value, "\n") &&
+			ansi.StringWidth(entry.value) <= width-labelWidth-2 {
+			lines = append(lines, promptColor(promptMuted, fitPromptText(label, labelWidth))+"  "+entry.value)
+			continue
 		}
 		// Every value is wrapped, never truncated; scrolling can reach its end.
 		for _, line := range strings.Split(ansi.Hardwrap(label, width, true), "\n") {
@@ -136,9 +165,6 @@ func (p *sshPrompt) detailLines() []string {
 
 func (p *sshPrompt) detailHeading(lines int) string {
 	prefix := "连接详情"
-	if p.detailFocus {
-		prefix = "› 连接详情"
-	}
 	if p.showAllConfig {
 		prefix += "·全部"
 	} else {
@@ -153,8 +179,11 @@ func (p *sshPrompt) detailHeading(lines int) string {
 
 func promptHelp(width int) []string {
 	entries := []string{
-		"查看配置  F2 切换主机列表 / 连接详情；窄屏时详情单独显示",
-		"全部配置  F3 切换已配置项 / 全部配置；默认只显示已配置项",
+		"管理配置  n / N 新增主机；e / E 编辑选中主机（浏览时）；Ctrl+S 保存，Esc 取消",
+		"填写表单  Tab / Shift+Tab 或 ↑↓ 切换字段；←→ / Home / End 移动输入光标；Ctrl+U 清空字段",
+		"多值配置  私钥与端口转发可用 Ctrl+N 添加一行，也可粘贴多行；留空使用继承值或默认值",
+		"切换面板  v / V 切换左右面板；亮色 ● 标题表示当前操作区域，另一侧显示 ○；窄屏时切换列表 / 详情页",
+		"全部配置  a / A 切换已配置项 / 全部配置；默认只显示已配置项",
 		"滚动详情  切到详情后，↑↓ 滚动、←→ / PageUp / PageDown 翻页、Home / End 首尾，Esc 返回",
 		"配置来源  配置 / 扩展配置表示已填写的值；全部配置还包含程序默认值和未设置的字段",
 		"确认连接  Enter（搜索时先锁定关键词，再按一次连接）",
@@ -167,7 +196,7 @@ func promptHelp(width int) []string {
 		"搜索主机  / 开始搜索；匹配别名、地址和分组标签，空格分隔多个关键词",
 		"锁定筛选  Enter 锁定关键词；再按 / 可继续添加条件",
 		"取消输入  Esc / / 取消当前输入，保留已锁定的筛选条件",
-		"清空筛选  Ctrl+E；浏览时也可按 e / E",
+		"清空筛选  Ctrl+E",
 		"关闭帮助  ? / Esc；帮助较长时用 ↑ / ↓ 或翻页键滚动",
 	}
 	return strings.Split(ansi.Hardwrap(strings.Join(entries, "\n\n"), max(1, width), true), "\n")
@@ -176,6 +205,9 @@ func promptHelp(width int) []string {
 func (p *sshPrompt) View() tea.View {
 	if p.quit || p.selected != nil {
 		return tea.NewView("")
+	}
+	if p.editor != nil {
+		return p.editorView()
 	}
 	width, rows := max(1, p.width), p.pageSize()
 	title := promptColor(promptAccent, "tssh  主机连接")
@@ -195,13 +227,24 @@ func (p *sshPrompt) View() tea.View {
 		}
 	}
 	lines := []string{title, search, ""}
-	configShortcut := "F3全部"
-	if p.showAllConfig {
-		configShortcut = "F3已配置"
+	if p.notice != "" {
+		lines[2] = p.notice
 	}
-	footer := "F2详情 " + configShortcut + " ↑↓选择 /搜索 Enter连接 ?帮助 q退出"
+	configShortcut := promptShortcut("a", "全部")
+	if p.showAllConfig {
+		configShortcut = promptShortcut("a", "已配置")
+	}
+	footer := strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+		promptShortcut("v", "切换面板"), configShortcut, promptShortcut("/", "搜索"),
+		promptShortcut("Enter", "连接"), promptShortcut("?", "帮助"), promptShortcut("q", "退出")}, "  ")
 	if width < 76 {
-		footer = "F2详情 " + configShortcut + " ↑↓选择 /搜索 ↵连接 ?帮助 q退出"
+		footer = strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+			promptShortcut("v", "切换"), promptShortcut("/", "搜索"), promptShortcut("↵", "连接"),
+			promptShortcut("?", "帮助")}, "  ")
+		if width < 50 {
+			footer = strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+				promptShortcut("v", "切换"), promptShortcut("/", "搜索"), promptShortcut("?", "帮助")}, "  ")
+		}
 	}
 	if p.search {
 		footer = "↑↓ 选择  Enter 锁定  Esc 取消  Ctrl+E 清空"
@@ -224,7 +267,7 @@ func (p *sshPrompt) View() tea.View {
 		footer = "↑↓ 滚动  ←→ 翻页  ? / Esc 返回"
 	} else if p.detailFocus && width < 76 {
 		details := p.detailLines()
-		lines = append(lines, promptColor(promptAccent, p.detailHeading(len(details))), promptColor(promptMuted, strings.Repeat("─", width)))
+		lines = append(lines, promptPanelTitle(p.detailHeading(len(details)), width, true), "")
 		start := min(p.detailOffset, max(0, len(details)-rows))
 		for row := 0; row < rows; row++ {
 			line := ""
@@ -243,9 +286,10 @@ func (p *sshPrompt) View() tea.View {
 		}
 		details := p.detailLines()
 		detailStart := min(p.detailOffset, max(0, len(details)-rows))
+		lines = append(lines, join(promptPanelTitle("主机列表", leftWidth, !p.detailFocus),
+			promptPanelTitle(p.detailHeading(len(details)), rightWidth, p.detailFocus)))
 		heading := "   " + promptHostColumns("主机名称", "地址", leftWidth-3)
-		lines = append(lines, join(promptColor(promptAccent, heading), promptColor(promptAccent, p.detailHeading(len(details)))))
-		lines = append(lines, join(promptColor(promptMuted, strings.Repeat("─", leftWidth)), promptColor(promptMuted, strings.Repeat("─", rightWidth))))
+		lines = append(lines, join(promptColor(promptMuted, heading), promptColor(promptMuted, "配置项 / 值")))
 		start := p.cursor / rows * rows
 		for row := 0; row < rows; row++ {
 			left, right := "", ""
@@ -255,10 +299,17 @@ func (p *sshPrompt) View() tea.View {
 				prefix := "   "
 				if index == p.cursor {
 					prefix = fitPromptText(promptCursorIcon, 2) + " "
+					if p.detailFocus {
+						prefix = fitPromptText(promptSelectedIcon, 2) + " "
+					}
 				}
 				left = prefix + promptHostColumns(host.Alias, host.Host, leftWidth-3)
 				if index == p.cursor {
-					left = promptColor(promptActive, fitPromptText(left, leftWidth))
+					if p.detailFocus {
+						left = promptColor("1", left)
+					} else {
+						left = promptColor(promptAccent, left)
+					}
 				}
 			} else if len(p.visible) == 0 {
 				if row == 0 {
@@ -270,7 +321,7 @@ func (p *sshPrompt) View() tea.View {
 				if row == 1 {
 					left = "按 Ctrl+E 清空筛选，或按 / 重新搜索"
 					if len(p.hosts) == 0 {
-						left = "请在 ~/.tssh/config 中添加主机配置"
+						left = "按 n 新增主机配置"
 					}
 				}
 			}
@@ -284,9 +335,17 @@ func (p *sshPrompt) View() tea.View {
 		}
 	}
 	if p.detailFocus && !p.showShortcuts {
-		footer = configShortcut + " ↑↓滚动 ←→翻页 Home/End首尾 F2/Esc返回"
+		footer = strings.Join([]string{promptShortcut("v", "切换面板"), promptShortcut("Esc", "返回列表"),
+			configShortcut, promptShortcut("↑↓", "滚动"), promptShortcut("←→", "翻页"), promptShortcut("Home/End", "首尾")}, "  ")
+		if width < 76 {
+			actions := []string{promptShortcut("v", "切换"), configShortcut, promptShortcut("↑↓", "滚动")}
+			if width >= 50 {
+				actions = append(actions, promptShortcut("←→", "翻页"))
+			}
+			footer = strings.Join(append(actions, promptShortcut("?", "帮助")), "  ")
+		}
 	}
-	lines = append(lines, "", promptColor(promptMuted, footer))
+	lines = append(lines, "", footer)
 	// Extremely small terminals still receive a bounded, useful view.
 	if p.height < promptChromeRows+1 {
 		lines = []string{title, search}

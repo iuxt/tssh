@@ -59,6 +59,8 @@ type sshPrompt struct {
 	search, showShortcuts bool
 	selected              *sshHost
 	quit                  bool
+	editor                *hostConfigEditor
+	notice                string
 }
 
 func newSSHPrompt(hosts []*sshHost, keywords string) *sshPrompt {
@@ -169,6 +171,9 @@ func (p *sshPrompt) appendQuery(text string) {
 }
 
 func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if p.editor != nil {
+		return p.updateEditor(msg)
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		p.width, p.height = max(1, msg.Width), max(1, msg.Height)
@@ -202,6 +207,10 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !p.showShortcuts {
 				p.showAllConfig = !p.showAllConfig
 				p.detailOffset = 0
+			}
+		case "f4", "f5":
+			if !p.showShortcuts {
+				p.openEditor(key == "f4")
 			}
 		case "ctrl+e":
 			p.clearSearch()
@@ -244,6 +253,19 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				switch key {
+				case "n", "N", "e", "E":
+					if !p.showShortcuts {
+						p.openEditor(key == "n" || key == "N")
+					}
+				case "v", "V":
+					if !p.showShortcuts {
+						p.detailFocus = !p.detailFocus
+					}
+				case "a", "A":
+					if !p.showShortcuts {
+						p.showAllConfig = !p.showAllConfig
+						p.detailOffset = 0
+					}
 				case "q", "Q":
 					p.quit = true
 					return p, tea.Quit
@@ -259,8 +281,6 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					p.jump(false)
 				case "G":
 					p.jump(true)
-				case "e", "E":
-					p.clearSearch()
 				}
 			}
 		}
