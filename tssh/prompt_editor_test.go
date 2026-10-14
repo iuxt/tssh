@@ -164,6 +164,109 @@ func TestPromptEditIncludeSource(t *testing.T) {
 	assert.Equal(t, mainText, string(data))
 }
 
+func TestPromptEditSharedWildcardBlock(t *testing.T) {
+	for _, alias := range []string{"prod", "prod-renamed"} {
+		t.Run(alias, func(t *testing.T) {
+			p, _ := editorTestPrompt(t, "Host prod prod* !prod-excluded\n"+
+				" User root\n LocalForward 8080 localhost:80\n RemoteForward 9000 localhost:90\n"+
+				" IdentityFile ~/.ssh/prod\n Password old-password\n")
+			p.openEditor(false)
+			require.NotNil(t, p.editor)
+			setEditorField(t, p.editor, "Host", alias)
+			setEditorField(t, p.editor, "User", "ubuntu")
+			setEditorField(t, p.editor, "Password", "")
+			p.saveEditor()
+			require.Nil(t, p.editor)
+			assert.Equal(t, "ubuntu", getConfig(alias, "User"))
+			assert.Empty(t, getConfig(alias, "Password"))
+			for key, value := range map[string]string{
+				"LocalForward": "8080 localhost:80", "RemoteForward": "9000 localhost:90",
+				"IdentityFile": "~/.ssh/prod",
+			} {
+				assert.Equal(t, []string{value}, getAllConfig(alias, key), key)
+				assert.Equal(t, []string{value}, getAllConfig("prod-other", key), key)
+			}
+			assert.Equal(t, "root", getConfig("prod-other", "User"))
+			assert.Equal(t, "old-password", getConfig("prod-other", "Password"))
+			assert.Empty(t, getAllConfig("prod-excluded", "LocalForward"))
+			require.Len(t, p.hosts, 1, "negative patterns must not appear as hosts")
+			assert.Equal(t, alias, p.currentHost().Alias)
+			p.openEditor(false)
+			require.NotNil(t, p.editor)
+			setEditorField(t, p.editor, "User", "")
+			p.saveEditor()
+			require.Nil(t, p.editor)
+			assert.Empty(t, getConfig(alias, "User"), "cleared fields must not return from the split block")
+		})
+	}
+}
+
+func TestPromptEditDuplicateAliasUsesIncludeOrder(t *testing.T) {
+	for _, scenario := range []string{"include-first", "main-first", "nested", "glob", "inactive", "repeated", "excluded-block", "match"} {
+		t.Run(scenario, func(t *testing.T) {
+			p, main := editorTestPrompt(t, "")
+			dir := filepath.Dir(main)
+			first, second, nested := filepath.Join(dir, "z.conf"), filepath.Join(dir, "a.conf"), filepath.Join(dir, "nested")
+			quote := func(path string) string { return "\"" + filepath.ToSlash(path) + "\"" }
+			include := "Include " + quote(first) + " " + quote(second) + "\n"
+			files := map[string]string{
+				main:   include + "Host prod\n User main-user\n",
+				first:  "Host prod\n User first-user\n",
+				second: "Host prod\n User second-user\n",
+				nested: "Host prod\n User nested-user\n",
+			}
+			selected, initialUser := first, "first-user"
+			switch scenario {
+			case "main-first":
+				files[main] = "Host prod\n User main-user\nHost *\n" + include
+				selected, initialUser = main, "main-user"
+			case "nested":
+				files[first] = "Include " + quote(nested) + "\n" + files[first]
+				selected, initialUser = nested, "nested-user"
+			case "glob":
+				files[main] = "Include " + quote(filepath.Join(dir, "*.conf")) + "\nHost prod\n User main-user\n"
+				selected, initialUser = second, "second-user"
+			case "inactive":
+				files[main] = "Host other\n" + include + "Host prod\n User main-user\n"
+				selected, initialUser = main, "main-user"
+			case "repeated":
+				files[main] = "Host other\n" + include + "Host *\n" + files[main]
+			case "excluded-block":
+				files[main] = "Host prod !prod\n User ignored-user\nHost *\n" + files[main]
+			case "match":
+				files[main] = "Match host prod\n" + files[main]
+			}
+			for path, content := range files {
+				require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+			}
+			userConfig = &tsshConfig{configPath: main}
+			p.config = userConfig
+			p.hosts = getAllHosts()
+			p.keywords = "prod"
+			p.filterHosts()
+			require.Equal(t, initialUser, getConfig("prod", "User"))
+			p.openEditor(false)
+			require.NotNil(t, p.editor)
+			resolved, err := filepath.EvalSymlinks(selected)
+			require.NoError(t, err)
+			assert.Equal(t, resolved, p.editor.document.path)
+			value, _ := p.editor.value("User")
+			assert.Equal(t, initialUser, value)
+			setEditorField(t, p.editor, "User", "ubuntu")
+			p.saveEditor()
+			require.Nil(t, p.editor)
+			assert.Equal(t, "ubuntu", getConfig("prod", "User"))
+			for path, content := range files {
+				data, err := os.ReadFile(path)
+				require.NoError(t, err)
+				if path != selected {
+					assert.Equal(t, content, string(data), "unselected source %s", path)
+				}
+			}
+		})
+	}
+}
+
 func TestPromptPasswordPreservedReplacedAndRemoved(t *testing.T) {
 	encoded, err := encodeSecret([]byte("old-password"))
 	require.NoError(t, err)

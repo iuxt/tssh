@@ -913,6 +913,11 @@ func (inc *Include) GetFiles() map[string]*Config {
 	return inc.files
 }
 
+// GetPaths returns the included file paths in configuration evaluation order.
+func (inc *Include) GetPaths() []string {
+	return append([]string(nil), inc.matches...)
+}
+
 // GetAll finds all values in the Include statement matching the alias and the
 // given key.
 func (inc *Include) GetAll(alias, key string) ([]string, error) {

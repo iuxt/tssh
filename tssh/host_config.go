@@ -45,14 +45,32 @@ type hostConfigBlock struct {
 	values     map[string][]string
 }
 
+func (b hostConfigBlock) matches(alias string) bool {
+	host := &ssh_config.Host{}
+	for _, value := range b.aliases {
+		pattern, err := ssh_config.NewPattern(value)
+		if err != nil {
+			return false
+		}
+		host.Patterns = append(host.Patterns, pattern)
+	}
+	return host.Matches(alias)
+}
+
+type hostConfigInclude struct {
+	directive *ssh_config.Include
+	host      *ssh_config.Host
+	documents []*hostConfigDocument
+}
+
 type hostConfigDocument struct {
 	path     string
 	original []byte
 	lines    []string
 	newline  string
 	blocks   []hostConfigBlock
-	parsed   *ssh_config.Config
 	comments map[int]string
+	includes []*hostConfigInclude
 }
 
 func configLineParts(line string) (string, string) {
@@ -91,7 +109,7 @@ func readHostConfigDocument(path string, allowMissing bool) (*hostConfigDocument
 		newline = "\r\n"
 	}
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
-	d := &hostConfigDocument{path: path, original: data, lines: lines, newline: newline, parsed: parsed, comments: map[int]string{}}
+	d := &hostConfigDocument{path: path, original: data, lines: lines, newline: newline, comments: map[int]string{}}
 	for i, line := range lines {
 		key, value := configLineParts(line)
 		if key != "host" && key != "match" {
@@ -109,6 +127,9 @@ func readHostConfigDocument(path string, allowMissing bool) (*hostConfigDocument
 	}
 	for _, host := range parsed.Hosts {
 		for _, node := range host.Nodes {
+			if inc, ok := node.(*ssh_config.Include); ok {
+				d.includes = append(d.includes, &hostConfigInclude{directive: inc, host: host})
+			}
 			kv, ok := node.(*ssh_config.KV)
 			if !ok {
 				continue
@@ -130,45 +151,65 @@ func readHostConfigDocument(path string, allowMissing bool) (*hostConfigDocument
 	return d, nil
 }
 
-// Visit Includes in stable order, using the same resolved paths as the parser.
+// Retain Include edges and their evaluation order as well as a unique list of
+// documents for duplicate-alias checks. A file may be included in several scopes.
 func hostConfigDocuments(path string) ([]*hostConfigDocument, error) {
 	var documents []*hostConfigDocument
-	seen := map[string]bool{}
-	var visit func(string) error
-	visit = func(path string) error {
+	seen := map[string]*hostConfigDocument{}
+	var visit func(string) (*hostConfigDocument, error)
+	visit = func(path string) (*hostConfigDocument, error) {
 		d, err := readHostConfigDocument(path, len(documents) == 0)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if seen[d.path] {
-			return nil
+		if previous := seen[d.path]; previous != nil {
+			return previous, nil
 		}
-		seen[d.path] = true
+		seen[d.path] = d
 		documents = append(documents, d)
-		for _, host := range d.parsed.Hosts {
-			for _, node := range host.Nodes {
-				inc, ok := node.(*ssh_config.Include)
-				if !ok {
-					continue
+		for _, inc := range d.includes {
+			for _, path := range inc.directive.GetPaths() {
+				child, err := visit(path)
+				if err != nil {
+					return nil, err
 				}
-				paths := make([]string, 0, len(inc.GetFiles()))
-				for path := range inc.GetFiles() {
-					paths = append(paths, path)
-				}
-				slices.Sort(paths)
-				for _, path := range paths {
-					if err := visit(path); err != nil {
-						return err
-					}
-				}
+				inc.documents = append(inc.documents, child)
 			}
 		}
-		return nil
+		return d, nil
 	}
-	if err := visit(path); err != nil {
+	if _, err := visit(path); err != nil {
 		return nil, err
 	}
 	return documents, nil
+}
+
+// Find the first explicit Host declaration in evaluation order, expanding
+// Includes at their source positions only when their containing block matches.
+func (d *hostConfigDocument) findHostBlock(alias string) (*hostConfigDocument, int) {
+	blockIndex, includeIndex := 0, 0
+	for line := range d.lines {
+		if blockIndex < len(d.blocks) && d.blocks[blockIndex].start == line {
+			block := d.blocks[blockIndex]
+			if slices.Contains(block.aliases, alias) && block.matches(alias) {
+				return d, blockIndex
+			}
+			blockIndex++
+		}
+		if includeIndex < len(d.includes) && d.includes[includeIndex].directive.Pos().Line-1 == line {
+			inc := d.includes[includeIndex]
+			includeIndex++
+			if !inc.host.Matches(alias) {
+				continue
+			}
+			for _, child := range inc.documents {
+				if source, block := child.findHostBlock(alias); source != nil {
+					return source, block
+				}
+			}
+		}
+	}
+	return nil, -1
 }
 
 func validateHostAlias(alias string) error {

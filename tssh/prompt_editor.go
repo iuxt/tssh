@@ -103,17 +103,7 @@ func (p *sshPrompt) openEditor(create bool) {
 	e := &hostConfigEditor{document: documents[0], block: -1, values: make([]string, len(hostEditorFields))}
 	if !create {
 		e.alias = p.currentHost().Alias
-		for _, d := range documents {
-			for index, block := range d.blocks {
-				if slices.Contains(block.aliases, e.alias) {
-					e.document, e.block = d, index
-					break
-				}
-			}
-			if e.block >= 0 {
-				break
-			}
-		}
+		e.document, e.block = documents[0].findHostBlock(e.alias)
 		if e.block < 0 {
 			p.notice = "没有找到该别名的 Host 配置块；请使用 n 新增独立配置"
 			return
@@ -341,8 +331,15 @@ func (e *hostConfigEditor) content() ([]byte, error) {
 					remaining = append(remaining, old)
 				}
 			}
-			lines = append(lines, "Host "+strings.Join(remaining, " "))
-			lines = append(lines, e.document.lines[source.start+1:source.end]...)
+			// A remaining wildcard can still match the edited (or renamed)
+			// alias, duplicating multi-value options and restoring cleared fields.
+			if (hostConfigBlock{aliases: remaining}).matches(alias) {
+				remaining = append(remaining, "!"+alias)
+			}
+			if len(remaining) > 0 {
+				lines = append(lines, "Host "+strings.Join(remaining, " "))
+				lines = append(lines, e.document.lines[source.start+1:source.end]...)
+			}
 		}
 		lines = append(lines, e.document.lines[source.end:]...)
 	}

@@ -293,7 +293,8 @@ func recursiveGetHosts(cfgHosts []*ssh_config.Host) []*sshHost {
 	for _, host := range cfgHosts {
 		for _, node := range host.Nodes {
 			if include, ok := node.(*ssh_config.Include); ok && include != nil {
-				for _, config := range include.GetFiles() {
+				for _, path := range include.GetPaths() {
+					config := include.GetFiles()[path]
 					if config != nil {
 						hosts = append(hosts, recursiveGetHosts(config.Hosts)...)
 					}
@@ -308,9 +309,12 @@ func recursiveGetHosts(cfgHosts []*ssh_config.Host) []*sshHost {
 func appendPromptHosts(hosts []*sshHost, cfgHosts ...*ssh_config.Host) []*sshHost {
 	for _, host := range cfgHosts {
 		for _, pattern := range host.Patterns {
+			if pattern.Not() {
+				continue
+			}
 			alias := pattern.String()
 			if strings.ContainsRune(alias, '*') || strings.ContainsRune(alias, '?') {
-				if alias != "*" && !pattern.Not() {
+				if alias != "*" {
 					userConfig.wildcardPatterns = append(userConfig.wildcardPatterns, pattern)
 				}
 				continue
