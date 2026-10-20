@@ -1,0 +1,19 @@
+baseURL = 'https://iuxt.github.io/tssh/'
+locale = 'zh-CN'
+defaultContentLanguage = 'zh-cn'
+title = 'tssh — 让终端连接更顺手'
+disableKinds = ['taxonomy', 'term', 'RSS']
+enableRobotsTXT = true
+
+[params]
+description = 'tssh 是一款跨平台 SSH 客户端，提供中文主机管理、搜索筛选、trzsz 与 Zmodem 文件传输，让日常远程连接更顺手。'
+repository = 'https://github.com/iuxt/tssh'
+
+[outputs]
+home = ['HTML']
+
+[markup.highlight]
+noClasses = false
+
+[caches.images]
+dir = ':cacheDir/images'

@@ -24,3 +24,8 @@ debian/files
 *.swo
 
 dist/
+
+# Hugo website build output
+website/public/
+website/resources/
+website/.hugo_build.lock

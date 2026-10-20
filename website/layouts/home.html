@@ -1,0 +1,69 @@
+{{ define "main" }}
+{{ $repo := site.Params.repository }}
+<header class="site-header wrap">
+  <a class="brand" href="{{ site.Home.RelPermalink }}" aria-label="tssh 首页"><span class="brand-icon" aria-hidden="true">&gt;_</span>tssh<span class="brand-dot">.</span></a>
+  <nav aria-label="主导航">
+    <a href="#features">功能</a><a href="#workflow">使用体验</a><a href="#start">快速开始</a>
+  </nav>
+  <a class="github-link" href="{{ $repo }}">GitHub <span aria-hidden="true">↗</span></a>
+</header>
+<main id="main">
+  <section class="hero wrap" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <div class="eyebrow"><span class="status-dot"></span> YOUR TERMINAL, UPGRADED.</div>
+      <h1 id="hero-title">连接服务器，<br>让终端<span class="accent">更顺手。</span></h1>
+      <p class="hero-description">熟悉的 SSH，多一点从容。<br>搜索主机、管理连接、传输文件，<br class="mobile-break">都在一个终端里完成。</p>
+      <div class="hero-actions"><a class="button primary" href="#start">开始使用 <span aria-hidden="true">↗</span></a><a class="text-link" href="{{ $repo }}/blob/main/README.md">阅读文档 <span aria-hidden="true">→</span></a></div>
+      <div class="hero-note"><span>开源免费</span><i></i><span>跨平台</span><i></i><span>为命令行而生</span></div>
+    </div>
+    <div class="hero-visual">
+      <div class="terminal" aria-label="主机搜索交互演示">
+        <div class="terminal-titlebar"><span class="window-controls" aria-hidden="true"><i></i><i></i><i></i></span><span>tssh — 主机管理</span><span class="terminal-title-icon" aria-hidden="true">⌘</span></div>
+        <div class="terminal-body">
+          <div class="shell-command"><span>❯</span> tssh<span class="cursor" aria-hidden="true"></span></div>
+          <div class="tui-heading"><strong>● 我的主机</strong><span id="host-count">4 台主机</span></div>
+          <label class="terminal-search"><span aria-hidden="true">⌕</span><input id="host-search" type="search" placeholder="试试搜索「生产」或「dev」" autocomplete="off" aria-label="搜索演示主机"><kbd>/</kbd></label>
+          <div class="tui-columns"><span>主机 / HOST</span><span>分组</span></div>
+          <div id="host-list" class="host-list" aria-label="演示主机列表">
+            <button class="host-row selected" type="button" data-name="web-production" data-tags="生产 上海" data-address="192.0.2.10" data-user="deploy" aria-pressed="true"><span class="host-name"><b>›</b> web-production</span><span class="host-tag">生产</span></button>
+            <button class="host-row" type="button" data-name="api-production" data-tags="生产 北京" data-address="192.0.2.20" data-user="deploy" aria-pressed="false"><span class="host-name"><b>›</b> api-production</span><span class="host-tag">生产</span></button>
+            <button class="host-row" type="button" data-name="dev-workspace" data-tags="开发 本地" data-address="192.0.2.30" data-user="developer" aria-pressed="false"><span class="host-name"><b>›</b> dev-workspace</span><span class="host-tag">开发</span></button>
+            <button class="host-row" type="button" data-name="homelab" data-tags="家庭 实验室" data-address="192.0.2.40" data-user="admin" aria-pressed="false"><span class="host-name"><b>›</b> homelab</span><span class="host-tag">家庭</span></button>
+          </div>
+          <p id="no-hosts" class="no-hosts" hidden>没有匹配的主机，换个关键词试试。</p>
+          <div class="host-detail" aria-live="polite"><span>连接详情</span><code id="host-detail">deploy@192.0.2.10:22</code><span class="detail-key">IdentityFile</span><code>~/.ssh/id_ed25519</code></div>
+          <div class="tui-footer"><span><kbd>↑↓</kbd> 选择</span><span><kbd>/</kbd> 搜索</span><span><kbd>esc</kbd> 清空</span></div>
+        </div>
+      </div>
+      <div class="terminal-caption"><span class="caption-line"></span> 在这里试试搜索与选择<span class="demo-label">交互示意 · 非真实连接</span></div>
+      <div class="visual-stamp" aria-hidden="true">LESS FRICTION.<br>MORE FLOW.<span>↗</span></div>
+    </div>
+  </section>
+  <div class="compatibility wrap"><span class="compatibility-label">无论你在哪个终端</span><div><span>macOS</span><span>Linux</span><span>Windows</span></div><span class="compatibility-end">一个工具，熟悉的工作流 <span aria-hidden="true">↵</span></span></div>
+
+  <section id="features" class="features section wrap" aria-labelledby="features-title">
+    <div class="section-heading"><div><p class="eyebrow">01 / MADE FOR THE EVERYDAY</p><h2 id="features-title">少一点折腾，<br>多一点得心应手。</h2></div><p class="section-intro">把远程开发里的小麻烦，<br>变成终端里的顺手操作。</p></div>
+    <div class="feature-grid">{{ range hugo.Data.features }}<article class="feature"><div class="feature-top"><span class="feature-symbol" aria-hidden="true">{{ .symbol }}</span><span class="feature-number">{{ .number }}</span></div><h3>{{ .title }}</h3><p>{{ .description }}</p><span class="feature-detail">{{ .detail }}</span></article>{{ end }}</div>
+  </section>
+
+  <section id="workflow" class="workflow section" aria-labelledby="workflow-title">
+    <div class="wrap workflow-layout"><div class="workflow-copy"><p class="eyebrow">02 / STAY IN YOUR FLOW</p><h2 id="workflow-title">连接之后，<br>依然顺手。</h2><p>不用为了传个文件打断思路。<br>在当前 SSH 会话里，<br>让文件来去自如。</p><div class="transfer-tabs" role="tablist" aria-label="文件传输示例"><button id="upload-tab" type="button" role="tab" aria-selected="true" aria-controls="upload-panel" tabindex="0">上传文件 <span aria-hidden="true">↗</span></button><button id="download-tab" type="button" role="tab" aria-selected="false" aria-controls="download-panel" tabindex="-1">下载文件 <span aria-hidden="true">↙</span></button></div><p class="transfer-note">远端需安装 trzsz；rz / sz 还需本地安装 lrzsz。</p></div>
+    <div class="transfer-terminal"><div class="transfer-top"><span class="status-dot"></span> SSH SESSION <span>~/workspace</span></div><div id="upload-panel" role="tabpanel" aria-labelledby="upload-tab"><p class="transfer-comment"># 在远程服务器中，运行上传命令</p><pre><span class="prompt">deploy@web-production</span> <span class="muted">~ $</span> trz</pre><div class="file-transfer"><span class="file-icon" aria-hidden="true">↥</span><div><strong>release.tar.gz</strong><span>选择本地文件 → 传到远端当前目录</span></div><span class="file-check" aria-hidden="true">✓</span></div><div class="progress-track"><div></div></div><div class="progress-meta"><span>示例文件 · 上传完成</span><span>100%</span></div><p class="transfer-result"><span>✓</span> 文件已就位，继续你的工作。</p></div><div id="download-panel" role="tabpanel" aria-labelledby="download-tab" hidden><p class="transfer-comment"># 在远程服务器中，运行下载命令</p><pre><span class="prompt">deploy@web-production</span> <span class="muted">~ $</span> tsz app.log</pre><div class="file-transfer"><span class="file-icon" aria-hidden="true">↧</span><div><strong>app.log</strong><span>选择本地目录 ← 从远端保存文件</span></div><span class="file-check" aria-hidden="true">✓</span></div><div class="progress-track"><div></div></div><div class="progress-meta"><span>示例文件 · 下载完成</span><span>100%</span></div><p class="transfer-result"><span>✓</span> 日志已保存，排查更顺手。</p></div><div class="transfer-bottom">trzsz + Zmodem<span>传输流程示意</span></div></div></div>
+  </section>
+
+  <section id="start" class="start section wrap" aria-labelledby="start-title"><div class="section-heading"><div><p class="eyebrow">03 / READY WHEN YOU ARE</p><h2 id="start-title">下一次连接，<br>从 tssh 开始。</h2></div><p class="section-intro">下载适合你系统的版本，<br>或用 Go 从源码构建。</p></div>
+    <div class="start-layout"><div class="install"><div class="install-heading"><h3>01 <span>安装 tssh</span></h3><a href="{{ $repo }}/releases/latest">所有版本 ↗</a></div><div class="install-tabs" role="tablist" aria-label="安装方式"><button id="binary-tab" type="button" role="tab" aria-selected="true" aria-controls="binary-panel" tabindex="0">下载可执行文件</button><button id="source-tab" type="button" role="tab" aria-selected="false" aria-controls="source-panel" tabindex="-1">从源码构建</button></div><div id="binary-panel" role="tabpanel" aria-labelledby="binary-tab"><div class="platforms"><a href="{{ $repo }}/releases/latest" aria-label="前往发布页下载 macOS 版本"><span aria-hidden="true">⌘</span><strong>macOS</strong><small>Apple Silicon / Intel</small><span class="platform-arrow" aria-hidden="true">↗</span></a><a href="{{ $repo }}/releases/latest" aria-label="前往发布页下载 Linux 版本"><span aria-hidden="true">&gt;_</span><strong>Linux</strong><small>x86_64 / ARM / 更多</small><span class="platform-arrow" aria-hidden="true">↗</span></a><a href="{{ $repo }}/releases/latest" aria-label="前往发布页下载 Windows 版本"><span aria-hidden="true">⊞</span><strong>Windows</strong><small>x86_64 / ARM / x86</small><span class="platform-arrow" aria-hidden="true">↗</span></a></div><p class="install-note">在 Releases 中选择对应系统与架构的压缩包，解压后将 <code>tssh</code>（Windows 为 <code>tssh.exe</code>）放入 PATH 目录。</p></div><div id="source-panel" role="tabpanel" aria-labelledby="source-tab" hidden><div class="code-block"><button class="copy-button" type="button" data-copy="build-command" aria-label="复制源码构建命令">复制</button><pre id="build-command">git clone --depth 1 {{ $repo }}.git
+cd tssh
+go build -o tssh .</pre></div><p class="install-note">需要 Go 1.25 或以上版本。构建完成后，将生成的可执行文件放入 PATH 目录。</p></div></div>
+    <div class="first-connection"><h3>02 <span>添加你的第一台主机</span></h3><p>运行 <code>tssh</code> 打开登录界面，按 <kbd>n</kbd> 新增主机，保存后即可连接。也可以手动编辑 <code>~/.tssh/config</code>：</p><div class="code-block light"><button class="copy-button" type="button" data-copy="config-command" aria-label="复制主机配置示例">复制</button><pre id="config-command"><span class="code-key">Host</span> my-server
+  <span class="code-key">HostName</span> 192.0.2.10
+  <span class="code-key">User</span> deploy
+  <span class="code-key">Port</span> 22
+  <span class="code-key">GroupLabels</span> 生产</pre></div><p class="config-note">将示例地址与用户替换为你的实际信息。已有 SSH 配置可复制到此文件，或通过 <code>tssh -F ~/.ssh/config</code> 显式读取。</p><a class="text-link" href="{{ $repo }}/blob/main/README.md">查看完整配置与使用文档 <span aria-hidden="true">→</span></a></div></div>
+    <div class="start-command"><span class="prompt" aria-hidden="true">❯</span><code>tssh my-server</code><span>熟悉的命令，新的体验。</span><button class="copy-button" type="button" data-copy-text="tssh my-server" aria-label="复制连接命令">复制命令 ↗</button></div>
+  </section>
+  <section class="closing wrap"><div class="closing-mark" aria-hidden="true">&gt;_</div><div><p>一个终端，连接你的世界。</p><span>基于 trzsz-ssh 持续改进，保持开源。</span></div><a class="button secondary" href="{{ $repo }}">在 GitHub 上探索 <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="site-footer wrap"><a class="brand" href="{{ site.Home.RelPermalink }}">tssh<span class="brand-dot">.</span></a><span>为每一次远程连接，少一点阻力。</span><div><a href="{{ $repo }}/blob/main/LICENSE">MIT License</a><a href="https://github.com/trzsz/trzsz-ssh">上游项目 ↗</a><a href="{{ $repo }}">GitHub ↗</a></div></footer>
+<div id="copy-status" class="copy-status" role="status" aria-live="polite"></div>
+{{ end }}

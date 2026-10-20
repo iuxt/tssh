@@ -1,0 +1,20 @@
+- number: '01'
+  symbol: '/'
+  title: 找到主机，只需几个字
+  description: 中文别名、分组标签、搜索筛选。服务器再多，也能从熟悉的名字开始连接。
+  detail: 按 / 搜索 · Enter 锁定筛选
+- number: '02'
+  symbol: '⇅'
+  title: 传文件，留在当前终端
+  description: 内置 trzsz 和 Zmodem 支持。在远端运行 trz / tsz 或 rz / sz，直接上传、下载文件。
+  detail: 支持文件与目录传输
+- number: '03'
+  symbol: '⌘'
+  title: 配置主机，随手就能改
+  description: 在登录界面新增、编辑主机。地址、私钥、跳板机、端口转发，按类别清楚呈现。
+  detail: n 新增 · e 编辑 · Ctrl+S 保存
+- number: '04'
+  symbol: '>'
+  title: 熟悉的 SSH，更多可能
+  description: 沿用 OpenSSH 配置语法，支持密码命令、自动交互与 TOTP；也能配合现有 scp 和 sftp 使用。
+  detail: Go 构建 · MIT 开源协议

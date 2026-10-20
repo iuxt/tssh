@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg?style=flat)](https://choosealicense.com/licenses/mit/)
 [![GitHub Release](https://img.shields.io/github/v/release/trzsz/trzsz-ssh)](https://github.com/trzsz/trzsz-ssh/releases)
-[![WebSite](https://img.shields.io/badge/WebSite-https%3A%2F%2Ftrzsz.github.io%2Ftssh-blue?style=flat)](https://trzsz.github.io/tssh)
+[![WebSite](https://img.shields.io/badge/WebSite-https%3A%2F%2Fiuxt.github.io%2Ftssh-blue?style=flat)](https://iuxt.github.io/tssh/)
 [![中文文档](https://img.shields.io/badge/%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3-https%3A%2F%2Ftrzsz.github.io%2Fcn%2Ftssh-blue?style=flat)](https://trzsz.github.io/cn/tssh)
 
 tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容的基础功能，同时实现其他有用的扩展功能。
