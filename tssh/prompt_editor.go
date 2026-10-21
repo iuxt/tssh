@@ -39,6 +39,7 @@ import (
 type hostEditorField struct {
 	key, label, group, hint string
 	multi, secret           bool
+	choices                 []string
 }
 
 var hostEditorFields = []hostEditorField{
@@ -50,27 +51,28 @@ var hostEditorFields = []hostEditorField{
 	{key: "IdentityFile", label: "私钥路径", group: "认证", hint: "例如 ~/.ssh/id_ed25519；Ctrl+N 添加多把私钥", multi: true},
 	{key: "Password", label: "登录密码", group: "认证", hint: "输入替换已存密码；Ctrl+U 清除此 Host 的密码；保存为 encPassword", secret: true},
 	{key: "PasswordCommand", label: "密码命令", group: "认证", hint: "连接时执行的外部密码命令；编辑时不会执行", secret: true},
-	{key: "IdentitiesOnly", label: "仅指定密钥", group: "认证", hint: "yes / no；留空继承或使用默认值"},
+	{key: "IdentitiesOnly", label: "仅指定密钥", group: "认证", hint: "yes / no；留空继承或使用默认值", choices: []string{"yes", "no"}},
 	{key: "PreferredAuthentications", label: "认证顺序", group: "认证", hint: "例如 publickey,keyboard-interactive,password"},
-	{key: "PasswordAuthentication", label: "密码认证", group: "认证", hint: "yes / no"},
-	{key: "PubkeyAuthentication", label: "公钥认证", group: "认证", hint: "yes / no"},
+	{key: "PasswordAuthentication", label: "密码认证", group: "认证", hint: "yes / no", choices: []string{"yes", "no"}},
+	{key: "PubkeyAuthentication", label: "公钥认证", group: "认证", hint: "yes / no", choices: []string{"yes", "no"}},
 	{key: "ProxyJump", label: "跳板机", group: "代理与转发", hint: "例如 bastion 或 user@host:22；多跳用逗号分隔"},
 	{key: "ProxyCommand", label: "代理命令", group: "代理与转发", hint: "例如 ssh -W %h:%p bastion；与 ProxyJump 二选一"},
-	{key: "ForwardAgent", label: "转发认证代理", group: "代理与转发", hint: "yes / no"},
+	{key: "ForwardAgent", label: "转发认证代理", group: "代理与转发", hint: "yes / no", choices: []string{"yes", "no"}},
 	{key: "LocalForward", label: "本地端口转发", group: "代理与转发", hint: "例如 8080 localhost:80；Ctrl+N 添加多条", multi: true},
 	{key: "RemoteForward", label: "远程端口转发", group: "代理与转发", hint: "例如 9000 localhost:3000；Ctrl+N 添加多条", multi: true},
 	{key: "DynamicForward", label: "SOCKS 代理", group: "代理与转发", hint: "例如 127.0.0.1:1080；Ctrl+N 添加多条", multi: true},
-	{key: "ExitOnForwardFailure", label: "转发失败退出", group: "代理与转发", hint: "yes / no"},
+	{key: "ExitOnForwardFailure", label: "转发失败退出", group: "代理与转发", hint: "yes / no", choices: []string{"yes", "no"}},
 	{key: "ConnectTimeout", label: "连接超时", group: "连接行为", hint: "非负整数，单位秒"},
 	{key: "ServerAliveInterval", label: "保活间隔", group: "连接行为", hint: "非负整数，单位秒；0 关闭"},
 	{key: "ServerAliveCountMax", label: "保活重试次数", group: "连接行为", hint: "非负整数"},
-	{key: "StrictHostKeyChecking", label: "主机密钥检查", group: "连接行为", hint: "yes / ask / accept-new / no"},
-	{key: "Compression", label: "启用压缩", group: "连接行为", hint: "yes / no"},
-	{key: "RequestTTY", label: "终端分配", group: "连接行为", hint: "auto / yes / no / force"},
+	{key: "StrictHostKeyChecking", label: "主机密钥检查", group: "连接行为", hint: "yes / ask / accept-new / no", choices: []string{"yes", "ask", "accept-new", "no"}},
+	{key: "Compression", label: "启用压缩", group: "连接行为", hint: "yes / no", choices: []string{"yes", "no"}},
+	{key: "RequestTTY", label: "终端分配", group: "连接行为", hint: "auto / yes / no / force", choices: []string{"auto", "yes", "no", "force"}},
 	{key: "RemoteCommand", label: "登录后命令", group: "连接行为", hint: "例如 tmux attach；按需配置 RequestTTY force"},
-	{key: "EnableTrzsz", label: "trzsz 传输", group: "扩展功能", hint: "yes / no；默认 yes"},
-	{key: "EnableZmodem", label: "Zmodem 传输", group: "扩展功能", hint: "yes / no；默认 yes"},
-	{key: "EnableOSC52", label: "远程剪贴板", group: "扩展功能", hint: "yes / no；默认 no"},
+	{key: "EnableTrzsz", label: "trzsz 传输", group: "扩展功能", hint: "yes / no；默认 yes", choices: []string{"yes", "no"}},
+	{key: "EnableZmodem", label: "Zmodem 传输", group: "扩展功能", hint: "yes / no；默认 yes", choices: []string{"yes", "no"}},
+	{key: "EnableOSC52", label: "远程剪贴板", group: "扩展功能", hint: "yes / no；默认 no", choices: []string{"yes", "no"}},
+	{key: "EnableSessionLog", label: "保存终端日志", group: "扩展功能", hint: "yes / no；默认 no；保存到 ~/.tssh/log/别名-日期.log", choices: []string{"yes", "no"}},
 	{key: "DefaultUploadPath", label: "默认上传目录", group: "扩展功能", hint: "例如 ~/Downloads；含空格路径使用双引号"},
 	{key: "DefaultDownloadPath", label: "默认下载目录", group: "扩展功能", hint: "例如 ~/Downloads；含空格路径使用双引号"},
 }
@@ -157,6 +159,30 @@ func (e *hostConfigEditor) insert(text string) {
 	e.err = ""
 }
 
+func (p *sshPrompt) cycleEditorChoice() bool {
+	e := p.editor
+	field := hostEditorFields[e.focus]
+	if len(field.choices) == 0 {
+		return false
+	}
+	value := strings.TrimSpace(e.values[e.focus])
+	if value == "" {
+		// Use the same effective value shown in connection details, including
+		// inherited settings, extension precedence and runtime defaults.
+		alias := strings.TrimSpace(e.values[0])
+		for _, entry := range getPromptConfigEntries(&sshHost{Alias: alias}, p.config) {
+			if strings.EqualFold(entry.key, field.key) {
+				value = entry.value
+				break
+			}
+		}
+	}
+	index := slices.IndexFunc(field.choices, func(choice string) bool { return strings.EqualFold(choice, value) })
+	value = field.choices[(index+1)%len(field.choices)]
+	e.values[e.focus], e.caret = value, len([]rune(value))
+	return true
+}
+
 func (p *sshPrompt) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 	e := p.editor
 	switch msg := msg.(type) {
@@ -216,6 +242,9 @@ func (p *sshPrompt) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		default:
+			if msg.Text == " " && p.cycleEditorChoice() {
+				break
+			}
 			if msg.Text != "" {
 				e.insert(msg.Text)
 			}
@@ -518,6 +547,9 @@ func (p *sshPrompt) editorView() tea.View {
 	}
 	field := hostEditorFields[e.focus]
 	hint, hintStyle := field.hint, promptMuted
+	if len(field.choices) > 0 {
+		hint = "空格切换 · " + hint
+	}
 	if e.err != "" {
 		hint, hintStyle = e.err, "1;31"
 	}
@@ -555,7 +587,9 @@ func (p *sshPrompt) editorView() tea.View {
 		}
 		lines = append(lines, promptShortcut("Ctrl+S", "保存")+"  "+promptShortcut("Esc", "取消"))
 		keys := "Tab/↑↓ 切换  ←→ 移动  Ctrl+U 清空"
-		if field.multi {
+		if len(field.choices) > 0 {
+			keys = "Tab/↑↓ 切换  空格切换选项  Ctrl+U 清空"
+		} else if field.multi {
 			keys = "Tab/↑↓ 切换  Ctrl+U 清空  Ctrl+N 添加一行"
 			if panelWidth < 50 {
 				keys = "Tab切换 Ctrl+U清空 Ctrl+N换行"

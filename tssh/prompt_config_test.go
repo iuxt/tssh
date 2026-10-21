@@ -56,6 +56,7 @@ func TestPromptConfigDefaults(t *testing.T) {
 	assert.Equal(t, "10", entries["connecttimeout"].value)
 	assert.Equal(t, "yes", entries["enablezmodem"].value)
 	assert.Equal(t, "no", entries["enableosc52"].value)
+	assert.Equal(t, "no", entries["enablesessionlog"].value)
 	assert.Equal(t, "1", entries["consoleescapetime"].value)
 	assert.Equal(t, "30", entries["expecttimeout"].value)
 	assert.Equal(t, "未设置", entries["proxycommand"].value)
@@ -80,6 +81,7 @@ Host other
     GroupLabels production
     Password local-secret
     EnableZmodem yes
+    EnableSessionLog no
 Include "` + filepath.ToSlash(included) + `"
 Host *
     User deploy
@@ -94,6 +96,7 @@ Host *
 	extra, err := ssh_config.Decode(strings.NewReader(`Host target
     Password extension-secret
     EnableZmodem no
+    EnableSessionLog yes
     GroupLabels database
     CustomOption extension-value
     PasswordCommand touch should-never-run
@@ -111,6 +114,8 @@ Host *
 	assert.Equal(t, "database\nproduction\neast", entries["grouplabels"].value)
 	assert.Equal(t, "no", entries["enablezmodem"].value)
 	assert.Equal(t, "扩展配置", entries["enablezmodem"].source)
+	assert.Equal(t, "yes", entries["enablesessionlog"].value)
+	assert.Equal(t, "扩展配置", entries["enablesessionlog"].source)
 	assert.Equal(t, "included-value", entries["customincluded"].value)
 	assert.Equal(t, "extension-value", entries["customoption"].value)
 	assert.NotContains(t, entries, "onlyother")

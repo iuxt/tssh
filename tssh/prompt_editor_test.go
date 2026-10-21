@@ -66,6 +66,124 @@ func setEditorField(t *testing.T, e *hostConfigEditor, key, value string) {
 	t.Fatalf("unknown field %s", key)
 }
 
+func TestPromptSessionLogSwitch(t *testing.T) {
+	p, path := editorTestPrompt(t, "Host server\n HostName server.example\nHost *\n EnableSessionLog yes\n")
+	p.openEditor(false)
+	require.NotNil(t, p.editor)
+	setEditorField(t, p.editor, "EnableSessionLog", "")
+	assert.Contains(t, ansi.Strip(p.editorView().Content), "保存终端日志")
+	pressPrompt(p, "space") // Turn off the inherited yes.
+	assert.Equal(t, "no", p.editor.values[p.editor.focus])
+	pressPrompt(p, "ctrl+s")
+	require.Nil(t, p.editor, p.notice)
+	assert.Equal(t, "no", getExConfig("server", "EnableSessionLog"))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "EnableSessionLog no")
+	entries := promptEntryMap(getPromptConfigEntries(p.currentHost(), userConfig))
+	assert.Equal(t, "no", entries["enablesessionlog"].value)
+	assert.Equal(t, "配置", entries["enablesessionlog"].source)
+	p.openEditor(false)
+	setEditorField(t, p.editor, "EnableSessionLog", "no")
+	pressPrompt(p, "space")
+	assert.Equal(t, "yes", p.editor.values[p.editor.focus])
+	pressPrompt(p, "ctrl+s")
+	require.Nil(t, p.editor, p.notice)
+	assert.Equal(t, "yes", getExConfig("server", "EnableSessionLog"))
+	p.openEditor(false)
+	setEditorField(t, p.editor, "EnableSessionLog", "invalid")
+	pressPrompt(p, "ctrl+s")
+	require.NotNil(t, p.editor)
+	assert.Contains(t, p.editor.err, "yes 或 no")
+	setEditorField(t, p.editor, "EnableSessionLog", "")
+	pressPrompt(p, "ctrl+s")
+	require.Nil(t, p.editor, p.notice)
+	assert.Equal(t, "yes", getExConfig("server", "EnableSessionLog"), "clearing restores inheritance")
+}
+
+func TestPromptBooleanSpaceSwitches(t *testing.T) {
+	for _, field := range []struct{ key, fromDefault string }{
+		{"IdentitiesOnly", "yes"}, {"PasswordAuthentication", "no"}, {"PubkeyAuthentication", "no"},
+		{"ForwardAgent", "yes"}, {"ExitOnForwardFailure", "yes"}, {"Compression", "yes"},
+		{"EnableTrzsz", "no"}, {"EnableZmodem", "no"}, {"EnableOSC52", "yes"}, {"EnableSessionLog", "yes"},
+	} {
+		t.Run(field.key, func(t *testing.T) {
+			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\n")
+			p.openEditor(false)
+			setEditorField(t, p.editor, field.key, "")
+			assert.Contains(t, ansi.Strip(p.editorView().Content), "空格切换")
+			pressPrompt(p, "space")
+			assert.Equal(t, field.fromDefault, p.editor.values[p.editor.focus], "toggle the runtime default")
+			pressPrompt(p, "ctrl+s")
+			require.Nil(t, p.editor, p.notice)
+			assert.Equal(t, field.fromDefault, getConfig("server", field.key))
+			p.openEditor(false)
+			setEditorField(t, p.editor, field.key, "YES")
+			pressPrompt(p, "space")
+			assert.Equal(t, "no", p.editor.values[p.editor.focus])
+			pressPrompt(p, "space")
+			assert.Equal(t, "yes", p.editor.values[p.editor.focus])
+			assert.Equal(t, 3, p.editor.caret)
+		})
+		t.Run(field.key+"/inherited", func(t *testing.T) {
+			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\nHost *\n "+strings.ToLower(field.key)+" yes\n")
+			p.openEditor(false)
+			setEditorField(t, p.editor, field.key, "")
+			pressPrompt(p, "space")
+			assert.Equal(t, "no", p.editor.values[p.editor.focus], "toggle the inherited value, including lowercase keys")
+			pressPrompt(p, "ctrl+s")
+			require.Nil(t, p.editor, p.notice)
+			assert.Equal(t, "no", getConfig("server", field.key))
+			p.openEditor(false)
+			setEditorField(t, p.editor, field.key, "no")
+			pressPrompt(p, "ctrl+u")
+			pressPrompt(p, "ctrl+s")
+			require.Nil(t, p.editor, p.notice)
+			assert.Equal(t, "yes", getConfig("server", field.key), "clearing restores inheritance")
+		})
+	}
+}
+
+func TestPromptSpaceCyclesMultipleChoices(t *testing.T) {
+	for _, field := range []struct {
+		key    string
+		values []string
+	}{
+		{"StrictHostKeyChecking", []string{"ASK", "accept-new", "no", "yes", "ask"}},
+		{"RequestTTY", []string{"force", "auto", "yes", "no", "force"}},
+	} {
+		t.Run(field.key, func(t *testing.T) {
+			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\n")
+			p.openEditor(false)
+			setEditorField(t, p.editor, field.key, field.values[0])
+			for _, value := range field.values[1:] {
+				pressPrompt(p, "space")
+				assert.Equal(t, value, p.editor.values[p.editor.focus])
+			}
+			pressPrompt(p, "ctrl+s")
+			require.Nil(t, p.editor, p.notice)
+			assert.Equal(t, field.values[len(field.values)-1], getConfig("server", field.key))
+		})
+	}
+}
+
+func TestPromptChoiceUsesExtensionAndPreservesTextSpaces(t *testing.T) {
+	p, _ := editorTestPrompt(t, "Host server\n EnableZmodem no\n")
+	extra, err := ssh_config.Decode(strings.NewReader("Host server\n enablezmodem yes\n"))
+	require.NoError(t, err)
+	p.config.exConfig = extra
+	p.openEditor(false)
+	setEditorField(t, p.editor, "EnableZmodem", "")
+	pressPrompt(p, "space")
+	assert.Equal(t, "no", p.editor.values[p.editor.focus], "extension overrides the main file")
+	setEditorField(t, p.editor, "ProxyCommand", "ssh")
+	pressPrompt(p, "space")
+	assert.Equal(t, "ssh ", p.editor.values[p.editor.focus])
+	setEditorField(t, p.editor, "DefaultDownloadPath", "~/my")
+	pressPrompt(p, "space")
+	assert.Equal(t, "~/my ", p.editor.values[p.editor.focus])
+}
+
 func TestPromptCreateHostBeforeInheritedDefaults(t *testing.T) {
 	p, path := editorTestPrompt(t, "# original\nUser default-user\nPort 2222\nHost existing\n    HostName old.example\n")
 	p.openEditor(true)

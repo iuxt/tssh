@@ -458,6 +458,11 @@ Host *
     # Allow remote applications to copy text into the local clipboard via OSC52.
     EnableOSC52 yes
 
+    # 保存终端输出到 ~/.tssh/log/主机别名-YYYY-MM-DD.log（默认关闭）。
+    # 同一主机当天的会话追加写入，日期取连接开始时的本地日期。
+    # 首页按 e 编辑主机，在“保存终端日志”字段按空格切换，Ctrl+S 保存。
+    EnableSessionLog no
+
     # Console escape. Set ConsoleEscapeTime to 0 to disable tssh console escape.
     EscapeChar ~
     ConsoleEscapeTime 1

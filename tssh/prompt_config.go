@@ -67,7 +67,8 @@ func promptRuntimeDefaults(alias string) map[string]string {
 		"GroupLabels": "", "HideHost": "no",
 		"LocalForward": "", "RemoteForward": "", "DynamicForward": "",
 		"EnableTrzsz": "yes", "EnableZmodem": "yes", "EnableOSC52": "no", "EnableWaypipe": "no",
-		"EnableDragFile": "no", "DragFileUploadCommand": "rz",
+		"EnableSessionLog": "no",
+		"EnableDragFile":   "no", "DragFileUploadCommand": "rz",
 		"SetTerminalTitle": "no", "ConsoleEscapeTime": "1", "DnsSrvName": "",
 		"DefaultUploadPath": "", "DefaultDownloadPath": "", "ProgressColorPair": "",
 		"WaypipeClientPath": "waypipe", "WaypipeServerPath": "waypipe",
@@ -84,7 +85,7 @@ func promptExtendedKey(key string) bool {
 	switch strings.ToLower(key) {
 	case "grouplabels", "localforward", "remoteforward", "dynamicforward",
 		"enabletrzsz", "enablezmodem", "enableosc52", "enablewaypipe", "enabledragfile", "dragfileuploadcommand",
-		"setterminaltitle", "consoleescapetime",
+		"setterminaltitle", "consoleescapetime", "enablesessionlog",
 		"dnssrvname", "defaultuploadpath", "defaultdownloadpath", "progresscolorpair",
 		"waypipeclientpath", "waypipeserverpath", "waypipeclientoption", "waypipeserveroption":
 		return true

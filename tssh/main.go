@@ -341,6 +341,8 @@ func sshStart(args *sshArgs) (int, error) {
 	}
 
 	// forward standard input output
+	closeSessionLog := setupSessionLogging(sshConn)
+	defer closeSessionLog()
 	forwardStdio(sshConn)
 
 	// cleanup and wait for exit
