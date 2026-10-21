@@ -51,6 +51,10 @@ func pressPrompt(p *sshPrompt, key string) tea.Cmd {
 		msg.Code = tea.KeyF2
 	case "f3":
 		msg.Code = tea.KeyF3
+	case "f6":
+		msg.Code = tea.KeyF6
+	case "delete":
+		msg.Code = tea.KeyDelete
 	case "space":
 		msg.Code = tea.KeySpace
 		msg.Text = " "

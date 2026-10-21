@@ -60,6 +60,7 @@ type sshPrompt struct {
 	selected              *sshHost
 	quit                  bool
 	editor                *hostConfigEditor
+	deleteDialog          *hostDeleteDialog
 	notice                string
 }
 
@@ -171,6 +172,9 @@ func (p *sshPrompt) appendQuery(text string) {
 }
 
 func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if p.deleteDialog != nil {
+		return p.updateDeleteDialog(msg)
+	}
 	if p.editor != nil {
 		return p.updateEditor(msg)
 	}
@@ -213,6 +217,10 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f4", "f5":
 			if !p.showShortcuts {
 				p.openEditor(key == "f4")
+			}
+		case "delete", "f6":
+			if !p.search && !p.showShortcuts {
+				p.openDeleteDialog()
 			}
 		case "ctrl+e":
 			p.clearSearch()

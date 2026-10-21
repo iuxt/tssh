@@ -181,6 +181,7 @@ func promptHelp(width int) []string {
 	entries := []string{
 		"滚轮操作  滚轮浏览指针所在面板和帮助，编辑表单中切换字段；鼠标点击不触发操作",
 		"管理配置  n / N 新增主机；e / E 编辑选中主机（浏览时）；Ctrl+S 保存，Esc 取消",
+		"删除主机  Delete / F6（浏览时）；弹窗默认取消，选择删除后 Enter 或按 y 确认，Esc / n 取消",
 		"填写表单  Tab / Shift+Tab 或 ↑↓ 切换字段；←→ / Home / End 移动输入光标；Ctrl+U 清空字段",
 		"多值配置  私钥与端口转发可用 Ctrl+N 添加一行，也可粘贴多行；留空使用继承值或默认值",
 		"切换面板  v / V 切换左右面板；亮色 ● 标题表示当前操作区域，另一侧显示 ○；窄屏时切换列表 / 详情页",
@@ -236,15 +237,17 @@ func (p *sshPrompt) View() tea.View {
 		configShortcut = promptShortcut("a", "已配置")
 	}
 	footer := strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+		promptShortcut("F6", "删除"),
 		promptShortcut("v", "切换面板"), configShortcut, promptShortcut("/", "搜索"),
 		promptShortcut("Enter", "连接"), promptShortcut("?", "帮助"), promptShortcut("q", "退出")}, "  ")
 	if width < 76 {
 		footer = strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+			promptShortcut("F6", "删除"),
 			promptShortcut("v", "切换"), promptShortcut("/", "搜索"), promptShortcut("↵", "连接"),
 			promptShortcut("?", "帮助")}, "  ")
 		if width < 50 {
 			footer = strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
-				promptShortcut("v", "切换"), promptShortcut("/", "搜索"), promptShortcut("?", "帮助")}, "  ")
+				promptShortcut("F6", "删除"), promptShortcut("/", "搜索"), promptShortcut("?", "帮助")}, "  ")
 		}
 	}
 	if p.search {
@@ -359,7 +362,11 @@ func (p *sshPrompt) View() tea.View {
 	for i := range lines {
 		lines[i] = fitPromptText(lines[i], width)
 	}
-	view := tea.NewView(strings.Join(lines, "\n"))
+	content := strings.Join(lines, "\n")
+	if p.deleteDialog != nil {
+		content = p.deleteDialogView(content)
+	}
+	view := tea.NewView(content)
 	view.AltScreen = true
 	view.MouseMode = promptMouseMode()
 	return view
