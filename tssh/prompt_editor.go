@@ -71,6 +71,8 @@ var hostEditorFields = []hostEditorField{
 	{key: "RemoteCommand", label: "登录后命令", group: "连接行为", hint: "例如 tmux attach；按需配置 RequestTTY force"},
 	{key: "EnableTrzsz", label: "trzsz 传输", group: "扩展功能", hint: "yes / no；默认 yes", choices: []string{"yes", "no"}},
 	{key: "EnableZmodem", label: "Zmodem 传输", group: "扩展功能", hint: "yes / no；默认 yes", choices: []string{"yes", "no"}},
+	{key: "EnableDragFile", label: "拖拽上传", group: "扩展功能", hint: "yes / no；默认 no；开启后将本地文件拖入终端即可上传", choices: []string{"yes", "no"}},
+	{key: "DragFileUploadCommand", label: "拖拽上传命令", group: "扩展功能", hint: "trz / rz；默认 rz；trz 需开启 trzsz 传输，rz 需开启 Zmodem 传输", choices: []string{"trz", "rz"}},
 	{key: "EnableOSC52", label: "远程剪贴板", group: "扩展功能", hint: "yes / no；默认 no", choices: []string{"yes", "no"}},
 	{key: "EnableSessionLog", label: "保存终端日志", group: "扩展功能", hint: "yes / no；默认 no；保存到 ~/.tssh/log/别名-日期.log", choices: []string{"yes", "no"}},
 	{key: "DefaultUploadPath", label: "默认上传目录", group: "扩展功能", hint: "例如 ~/Downloads；含空格路径使用双引号"},

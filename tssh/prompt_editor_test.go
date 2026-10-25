@@ -106,6 +106,7 @@ func TestPromptBooleanSpaceSwitches(t *testing.T) {
 		{"IdentitiesOnly", "yes"}, {"PasswordAuthentication", "no"}, {"PubkeyAuthentication", "no"},
 		{"ForwardAgent", "yes"}, {"ExitOnForwardFailure", "yes"}, {"Compression", "yes"},
 		{"EnableTrzsz", "no"}, {"EnableZmodem", "no"}, {"EnableOSC52", "yes"}, {"EnableSessionLog", "yes"},
+		{"EnableDragFile", "yes"},
 	} {
 		t.Run(field.key, func(t *testing.T) {
 			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\n")
@@ -151,6 +152,7 @@ func TestPromptSpaceCyclesMultipleChoices(t *testing.T) {
 	}{
 		{"StrictHostKeyChecking", []string{"ASK", "accept-new", "no", "yes", "ask"}},
 		{"RequestTTY", []string{"force", "auto", "yes", "no", "force"}},
+		{"DragFileUploadCommand", []string{"", "trz", "rz", "trz"}},
 	} {
 		t.Run(field.key, func(t *testing.T) {
 			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\n")
@@ -163,6 +165,9 @@ func TestPromptSpaceCyclesMultipleChoices(t *testing.T) {
 			pressPrompt(p, "ctrl+s")
 			require.Nil(t, p.editor, p.notice)
 			assert.Equal(t, field.values[len(field.values)-1], getConfig("server", field.key))
+			p.openEditor(false)
+			value, _ := p.editor.value(field.key)
+			assert.Equal(t, field.values[len(field.values)-1], value)
 		})
 	}
 }
@@ -427,6 +432,7 @@ func TestPromptEditorRejectsInvalidInputAndExternalChanges(t *testing.T) {
 		{"Host", "invalid alias"}, {"Host", "wild*"}, {"Port", "65536"}, {"Port", "0"},
 		{"ConnectTimeout", "-1"}, {"ServerAliveInterval", "oops"}, {"ForwardAgent", "maybe"},
 		{"RequestTTY", "sometimes"}, {"StrictHostKeyChecking", "trust"},
+		{"EnableDragFile", "maybe"},
 	} {
 		t.Run(invalid.key+invalid.value, func(t *testing.T) {
 			original := "Host server\n HostName example.com\n"

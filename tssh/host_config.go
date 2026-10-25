@@ -243,7 +243,7 @@ func validateHostField(key, value string) error {
 			return fmt.Errorf("%s 必须为非负整数", key)
 		}
 	case "ForwardAgent", "IdentitiesOnly", "PasswordAuthentication", "PubkeyAuthentication", "Compression",
-		"ExitOnForwardFailure", "EnableTrzsz", "EnableZmodem", "EnableOSC52", "EnableSessionLog":
+		"ExitOnForwardFailure", "EnableTrzsz", "EnableZmodem", "EnableDragFile", "EnableOSC52", "EnableSessionLog":
 		if !strings.EqualFold(value, "yes") && !strings.EqualFold(value, "no") {
 			return fmt.Errorf("%s 请填写 yes 或 no", key)
 		}
