@@ -26,16 +26,20 @@ package tssh
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
+	xknownhosts "golang.org/x/crypto/ssh/knownhosts"
 )
 
 var acceptHostKeys []string
@@ -95,30 +99,8 @@ func addHostKey(path, host string, key ssh.PublicKey, ask, loginComplete bool) e
 		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n"+
 			"%s key fingerprint is %s.\r\n", host, shortKeyType(key.Type()), fingerprint)
 
-		stdin, closer, err := getKeyboardInput()
-		if err != nil {
+		if err := confirmHostKey(key, "Are you sure you want to continue connecting (yes/no/[fingerprint])? "); err != nil {
 			return err
-		}
-		defer closer()
-
-		reader := bufio.NewReader(stdin)
-		_, _ = os.Stderr.WriteString("Are you sure you want to continue connecting (yes/no/[fingerprint])? ")
-		for {
-			input, err := reader.ReadString('\n')
-			if err != nil {
-				return err
-			}
-			input = strings.TrimSpace(input)
-			if input == fingerprint {
-				break
-			}
-			input = strings.ToLower(input)
-			if input == "yes" {
-				break
-			} else if input == "no" {
-				return fmt.Errorf("host key not trusted")
-			}
-			_, _ = os.Stderr.WriteString("Please type 'yes', 'no' or the fingerprint: ")
 		}
 	}
 
@@ -133,9 +115,151 @@ func addHostKey(path, host string, key ssh.PublicKey, ask, loginComplete bool) e
 	return nil
 }
 
+// confirmHostKey requires an explicit answer; empty input never accepts a key.
+func confirmHostKey(key ssh.PublicKey, prompt string) error {
+	stdin, closer, err := getKeyboardInput()
+	if err != nil {
+		return err
+	}
+	defer closer()
+	reader := bufio.NewReader(stdin)
+	_, _ = os.Stderr.WriteString(prompt)
+	for {
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		input = strings.TrimSpace(input)
+		if input == ssh.FingerprintSHA256(key) || strings.EqualFold(input, "yes") {
+			return nil
+		}
+		if strings.EqualFold(input, "no") {
+			return fmt.Errorf("host key not trusted")
+		}
+		_, _ = os.Stderr.WriteString("Please type 'yes', 'no' or the fingerprint: ")
+	}
+}
+
+// replaceKnownHost removes only this host's trust in the conflicting keys.
+// Other aliases sharing a line keep their original key.
+func replaceKnownHost(path, host string, key ssh.PublicKey, want []xknownhosts.KnownKey) error {
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lines := strings.SplitAfter(string(original), "\n")
+	normalized := knownhosts.Normalize(host)
+	for _, old := range want {
+		if old.Line < 1 || old.Line > len(lines) {
+			return fmt.Errorf("known hosts file changed: %s", path)
+		}
+		line := lines[old.Line-1]
+		marker, hosts, oldKey, _, _, err := ssh.ParseKnownHosts([]byte(line))
+		if err != nil || marker != "" || !bytes.Equal(oldKey.Marshal(), old.Key.Marshal()) {
+			return fmt.Errorf("known hosts entry changed or is not a host key: %s:%d", path, old.Line)
+		}
+		var remaining []string
+		for _, name := range hosts {
+			if name == normalized || strings.HasPrefix(name, "|") {
+				continue
+			}
+			remaining = append(remaining, name)
+		}
+		if len(remaining) == 0 {
+			lines[old.Line-1] = ""
+		} else {
+			// Negation also excludes this host from wildcard entries, without
+			// changing the key trusted by any other host matching the pattern.
+			remaining = append([]string{"!" + normalized}, remaining...)
+			trimmed := strings.TrimLeft(line, " \t")
+			end := strings.IndexAny(trimmed, " \t")
+			lines[old.Line-1] = strings.Join(remaining, ",") + trimmed[end:]
+		}
+	}
+	content := strings.Join(lines, "")
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += knownhosts.Line([]string{normalized}, key) + "\n"
+
+	// Follow symlinks and atomically replace the target, keeping its permissions.
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(filepath.Dir(target), ".tssh-known-hosts-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	defer file.Close()
+	if err := file.Chmod(info.Mode().Perm()); err != nil {
+		return err
+	}
+	if err := writeAll(file, []byte(content)); err != nil {
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	current, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(current, original) {
+		return fmt.Errorf("known hosts file changed: %s", path)
+	}
+	return os.Rename(file.Name(), target)
+}
+
+func updateHostKey(files, userFiles []string, host string, remote net.Addr, key ssh.PublicKey, loginComplete bool) error {
+	addHostKeyMutex.Lock()
+	defer addHostKeyMutex.Unlock()
+	if loginComplete {
+		return fmt.Errorf("host key changed after login")
+	}
+	// Reload under the lock so simultaneous connections only prompt once.
+	db, err := knownhosts.NewDB(files...)
+	if err != nil {
+		return err
+	}
+	err = db.HostKeyCallback()(host, remote, key)
+	if err == nil {
+		return nil
+	}
+	var keyErr *xknownhosts.KeyError
+	if !errors.As(err, &keyErr) || len(keyErr.Want) == 0 {
+		return err
+	}
+	conflicts := make(map[string][]xknownhosts.KnownKey)
+	for _, old := range keyErr.Want {
+		if !slices.Contains(userFiles, old.Filename) {
+			return fmt.Errorf("host key conflict in global known hosts file %s:%d; update it manually", old.Filename, old.Line)
+		}
+		conflicts[old.Filename] = append(conflicts[old.Filename], old)
+	}
+	if err := confirmHostKey(key, "Replace the old host key and continue connecting (yes/no/[fingerprint])? "); err != nil {
+		return err
+	}
+	for path, want := range conflicts {
+		if err := replaceKnownHost(path, host, key, want); err != nil {
+			return fmt.Errorf("update known hosts (%s): %w", path, err)
+		}
+	}
+	warning("Updated the host key for '%s' (%s) in known hosts.", host, shortKeyType(key.Type()))
+	return nil
+}
+
 func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) {
 	primaryPath := ""
-	var files []string
+	var files, userFiles []string
 	addKnownHostsFiles := func(key string, user bool) error {
 		knownHostsFiles := getOptionConfigSplits(param.args, key)
 		if len(knownHostsFiles) == 0 {
@@ -173,7 +297,12 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 				continue
 			}
 			debug("add %s: %s", key, resolvedPath)
-			files = append(files, resolvedPath)
+			if !slices.Contains(files, resolvedPath) {
+				files = append(files, resolvedPath)
+			}
+			if user {
+				userFiles = append(userFiles, resolvedPath)
+			}
 		}
 		return nil
 	}
@@ -194,7 +323,10 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 		// Use the alias as the known_hosts identity even on nonstandard SSH ports.
 		hostKeyName = net.JoinHostPort(alias, "22")
 	}
+	var callbackMutex sync.Mutex
 	hostKeyCallback := func(_ string, remote net.Addr, key ssh.PublicKey) error {
+		callbackMutex.Lock()
+		defer callbackMutex.Unlock()
 		err := khdb.HostKeyCallback()(hostKeyName, remote, key)
 		if err == nil {
 			return nil
@@ -216,6 +348,21 @@ func getHostKeyCallback(param *sshParam) (ssh.HostKeyCallback, []string, error) 
 				"Please contact your system administrator.\r\n"+
 				"Add correct host key in %s to get rid of this message.\r\n",
 				shortKeyType(key.Type()), ssh.FingerprintSHA256(key), path)
+			switch strictHostKeyChecking {
+			case "yes", "true", "accept-new":
+				return err
+			default:
+				if err := updateHostKey(files, userFiles, hostKeyName, remote, key, param.loginComplete.Load()); err != nil {
+					return err
+				}
+				// Forget the old keys in this callback as soon as the file changes.
+				updated, reloadErr := knownhosts.NewDB(files...)
+				if reloadErr != nil {
+					return reloadErr
+				}
+				khdb = updated
+				return nil
+			}
 		} else if knownhosts.IsHostUnknown(err) && primaryPath != "" {
 			ask := true
 			switch strictHostKeyChecking {

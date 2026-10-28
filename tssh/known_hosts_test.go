@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	xknownhosts "golang.org/x/crypto/ssh/knownhosts"
 )
 
 func testPublicKey(t *testing.T) ssh.PublicKey {
@@ -122,4 +123,171 @@ func TestHostKeyAcceptanceIsPerLogin(t *testing.T) {
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "new-host")
+}
+
+func withHostKeyInput(t *testing.T, input string) {
+	t.Helper()
+	stdin, terminal := os.Stdin, isTerminal
+	file, err := os.CreateTemp(t.TempDir(), "stdin")
+	require.NoError(t, err)
+	_, err = file.WriteString(input)
+	require.NoError(t, err)
+	_, err = file.Seek(0, 0)
+	require.NoError(t, err)
+	os.Stdin, isTerminal = file, true
+	t.Cleanup(func() { os.Stdin, isTerminal = stdin, terminal; file.Close() })
+}
+
+func TestChangedHostKeyConfirmation(t *testing.T) {
+	previous := userConfig
+	t.Cleanup(func() { userConfig = previous })
+	userConfig = &tsshConfig{}
+	for _, tc := range []struct {
+		name, mode, input string
+		accept            bool
+	}{
+		{"confirm", "ask", "yes\n", true},
+		{"default", "", "yes\n", true},
+		{"reject", "ask", "no\n", false},
+		{"eof", "ask", "", false},
+		{"empty then reject", "ask", "\nno\n", false},
+		{"strict", "yes", "yes\n", false},
+		{"accept new only", "accept-new", "yes\n", false},
+		{"disabled still confirms change", "no", "no\n", false},
+		{"disabled explicit confirmation", "no", "yes\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withHostKeyInput(t, tc.input)
+			oldKey, newKey := testPublicKey(t), testPublicKey(t)
+			path := filepath.Join(t.TempDir(), "known_hosts")
+			original := knownhosts.Line([]string{"changed-host"}, oldKey) + "\n"
+			require.NoError(t, os.WriteFile(path, []byte(original), 0600))
+			args := &sshArgs{Destination: "changed-host", Option: sshOption{options: map[string][]string{
+				"userknownhostsfile": {path}, "globalknownhostsfile": {"none"}, "stricthostkeychecking": {tc.mode},
+			}}}
+			callback, _, err := getHostKeyCallback(&sshParam{args: args, addr: "changed-host:22"})
+			require.NoError(t, err)
+			remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+			err = callback("changed-host:22", remote, newKey)
+			if !tc.accept {
+				require.Error(t, err)
+				content, err := os.ReadFile(path)
+				require.NoError(t, err)
+				assert.Equal(t, original, string(content))
+				return
+			}
+			require.NoError(t, err)
+			// The original callback and a new login both accept the saved key.
+			require.NoError(t, callback("changed-host:22", remote, newKey))
+			require.Error(t, callback("changed-host:22", remote, oldKey))
+			db, err := knownhosts.NewDB(path)
+			require.NoError(t, err)
+			assert.NoError(t, db.HostKeyCallback()("changed-host:22", remote, newKey))
+			assert.Error(t, db.HostKeyCallback()("changed-host:22", remote, oldKey))
+		})
+	}
+}
+
+func TestReplaceKnownHostPreservesOtherHosts(t *testing.T) {
+	for _, hosts := range [][]string{
+		{"changed-host"},
+		{"changed-host", "other-host"},
+		{xknownhosts.HashHostname("changed-host")},
+		{"*-host"},
+		{"[changed-host]:2222", "other-host"},
+	} {
+		t.Run(hosts[0], func(t *testing.T) {
+			oldKey, newKey, unrelated := testPublicKey(t), testPublicKey(t), testPublicKey(t)
+			path := filepath.Join(t.TempDir(), "known_hosts")
+			content := "# keep this comment\n" + knownhosts.Line([]string{"unrelated"}, unrelated) + "\n" + knownhosts.Line(hosts, oldKey) + " comment"
+			require.NoError(t, os.WriteFile(path, []byte(content), 0640))
+			host := "changed-host:22"
+			if hosts[0] == "[changed-host]:2222" {
+				host = "changed-host:2222"
+			}
+			remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+			db, err := knownhosts.NewDB(path)
+			require.NoError(t, err)
+			var keyErr *xknownhosts.KeyError
+			require.ErrorAs(t, db.HostKeyCallback()(host, remote, newKey), &keyErr)
+			require.NoError(t, replaceKnownHost(path, host, newKey, keyErr.Want))
+			db, err = knownhosts.NewDB(path)
+			require.NoError(t, err)
+			assert.NoError(t, db.HostKeyCallback()(host, remote, newKey))
+			assert.Error(t, db.HostKeyCallback()(host, remote, oldKey))
+			assert.NoError(t, db.HostKeyCallback()("unrelated:22", remote, unrelated))
+			if len(hosts) > 1 || hosts[0] == "*-host" {
+				assert.NoError(t, db.HostKeyCallback()("other-host:22", remote, oldKey))
+			}
+			updated, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Contains(t, string(updated), "# keep this comment\n")
+			info, err := os.Stat(path)
+			require.NoError(t, err)
+			assert.Equal(t, os.FileMode(0640), info.Mode().Perm())
+		})
+	}
+}
+
+func TestChangedHostKeyAfterLoginIsRejected(t *testing.T) {
+	withHostKeyInput(t, "yes\n")
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	oldKey, newKey := testPublicKey(t), testPublicKey(t)
+	original := knownhosts.Line([]string{"changed-host"}, oldKey) + "\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0600))
+	remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+	require.Error(t, updateHostKey([]string{path}, []string{path}, "changed-host:22", remote, newKey, true))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, original, string(content))
+}
+
+func TestUpdateHostKeyMultipleFiles(t *testing.T) {
+	newKey := testPublicKey(t)
+	withHostKeyInput(t, ssh.FingerprintSHA256(newKey)+"\n")
+	var files []string
+	for range 2 {
+		path := filepath.Join(t.TempDir(), "known_hosts")
+		require.NoError(t, os.WriteFile(path, []byte(knownhosts.Line([]string{"changed-host"}, testPublicKey(t))+"\n"), 0600))
+		files = append(files, path)
+	}
+	remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+	require.NoError(t, updateHostKey(files, files, "changed-host:22", remote, newKey, false))
+	for _, path := range files {
+		db, err := knownhosts.NewDB(path)
+		require.NoError(t, err)
+		assert.NoError(t, db.HostKeyCallback()("changed-host:22", remote, newKey))
+	}
+}
+
+func TestUpdateGlobalHostKeyIsRejected(t *testing.T) {
+	withHostKeyInput(t, "yes\n")
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	original := knownhosts.Line([]string{"changed-host"}, testPublicKey(t)) + "\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0600))
+	remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+	err := updateHostKey([]string{path}, nil, "changed-host:22", remote, testPublicKey(t), false)
+	require.ErrorContains(t, err, "global known hosts file")
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, original, string(content))
+}
+
+func TestReplaceKnownHostFollowsSymlink(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	link := filepath.Join(t.TempDir(), "known_hosts_link")
+	oldKey, newKey := testPublicKey(t), testPublicKey(t)
+	require.NoError(t, os.WriteFile(path, []byte(knownhosts.Line([]string{"changed-host"}, oldKey)), 0600))
+	if err := os.Symlink(path, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	want := []xknownhosts.KnownKey{{Key: oldKey, Filename: link, Line: 1}}
+	require.NoError(t, replaceKnownHost(link, "changed-host:22", newKey, want))
+	info, err := os.Lstat(link)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink)
+	db, err := knownhosts.NewDB(path)
+	require.NoError(t, err)
+	remote := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+	assert.NoError(t, db.HostKeyCallback()("changed-host:22", remote, newKey))
 }
