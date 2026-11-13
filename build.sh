@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-BIN_DIR="$HOME/iCloud/bin"
+BIN_DIR="$HOME/OneDrive/bin"
 mkdir -p "$BIN_DIR"
 
 # tssh client
