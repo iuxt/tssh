@@ -197,9 +197,19 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.move(-1)
 		case "down", "tab", "ctrl+j":
 			p.move(1)
-		case "left", "pgup", "ctrl+h", "ctrl+u", "ctrl+b":
+		case "pgup", "pgdown":
+			direction := -1
+			if key == "pgdown" {
+				direction = 1
+			}
+			if p.showShortcuts || p.detailFocus || p.search {
+				p.move(direction * p.pageSize())
+			} else {
+				p.reorderHost(direction)
+			}
+		case "left", "ctrl+h", "ctrl+u", "ctrl+b":
 			p.move(-p.pageSize())
-		case "right", "pgdown", "ctrl+l", "ctrl+d", "ctrl+f":
+		case "right", "ctrl+l", "ctrl+d", "ctrl+f":
 			p.move(p.pageSize())
 		case "home":
 			p.jump(false)

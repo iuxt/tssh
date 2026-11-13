@@ -182,6 +182,7 @@ func promptHelp(width int) []string {
 		"滚轮操作  滚轮浏览指针所在面板和帮助，编辑表单中切换字段；鼠标点击不触发操作",
 		"管理配置  n / N 新增主机；e / E 编辑选中主机（浏览时）；Ctrl+S 保存，Esc 取消",
 		"删除主机  Delete / F6（浏览时）；弹窗默认取消，选择删除后 Enter 或按 y 确认，Esc / n 取消",
+		"调整顺序  列表浏览时 PageUp 上移、PageDown 下移选中主机一位，自动保存；筛选后仅交换相邻匹配主机",
 		"填写表单  Tab / Shift+Tab 或 ↑↓ 切换字段；←→ / Home / End 移动输入光标；Ctrl+U 清空字段",
 		"切换选项  yes / no 字段按空格切换；主机密钥检查与终端分配按空格循环可选值；Ctrl+U 恢复继承",
 		"多值配置  私钥与端口转发可用 Ctrl+N 添加一行，也可粘贴多行；留空使用继承值或默认值",
@@ -193,8 +194,8 @@ func promptHelp(width int) []string {
 		"退出界面  Ctrl+C / Ctrl+Q；浏览时也可按 q / Q",
 		"上一主机  ↑ / Shift+Tab / Ctrl+K；浏览时也可按 k / K",
 		"下一主机  ↓ / Tab / Ctrl+J；浏览时也可按 j / J",
-		"向上翻页  ← / PageUp / Ctrl+H / Ctrl+U / Ctrl+B；浏览时也可按 h / u / b（含大写）",
-		"向下翻页  → / PageDown / Ctrl+L / Ctrl+D / Ctrl+F；浏览时也可按 l / d / f（含大写）",
+		"向上翻页  ← / Ctrl+H / Ctrl+U / Ctrl+B；浏览时也可按 h / u / b（含大写）；搜索、详情和帮助中也可按 PageUp",
+		"向下翻页  → / Ctrl+L / Ctrl+D / Ctrl+F；浏览时也可按 l / d / f（含大写）；搜索、详情和帮助中也可按 PageDown",
 		"首尾主机  Home / End；浏览时也可按 g / G",
 		"搜索主机  / 开始搜索；匹配别名、地址和分组标签，空格分隔多个关键词",
 		"锁定筛选  Enter 锁定关键词；再按 / 可继续添加条件",
@@ -237,7 +238,7 @@ func (p *sshPrompt) View() tea.View {
 	if p.showAllConfig {
 		configShortcut = promptShortcut("a", "已配置")
 	}
-	footer := strings.Join([]string{promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
+	footer := strings.Join([]string{promptShortcut("PgUp/Dn", "调序"), promptShortcut("n", "新增"), promptShortcut("e", "编辑"),
 		promptShortcut("F6", "删除"),
 		promptShortcut("v", "切换面板"), configShortcut, promptShortcut("/", "搜索"),
 		promptShortcut("Enter", "连接"), promptShortcut("?", "帮助"), promptShortcut("q", "退出")}, "  ")

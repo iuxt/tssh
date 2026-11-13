@@ -260,24 +260,30 @@ func validateHostField(key, value string) error {
 }
 
 func (d *hostConfigDocument) write(content []byte) error {
-	current, err := os.ReadFile(d.path)
-	if err != nil && !(os.IsNotExist(err) && d.original == nil) {
+	return writeConfigFile(d.path, d.original, content)
+}
+
+// Replace configuration and its display-order metadata atomically, checking for
+// external edits before writing and immediately before replacing the file.
+func writeConfigFile(path string, original, content []byte) error {
+	current, err := os.ReadFile(path)
+	if err != nil && !(os.IsNotExist(err) && original == nil) {
 		return err
 	}
-	if (err == nil && d.original == nil) || !bytes.Equal(current, d.original) {
-		return fmt.Errorf("配置文件已被其他程序修改，请取消并重新打开表单")
+	if (err == nil && original == nil) || !bytes.Equal(current, original) {
+		return fmt.Errorf("配置文件已被其他程序修改，请重新打开后重试")
 	}
 	mode := os.FileMode(0600)
-	if info, err := os.Stat(d.path); err == nil {
+	if info, err := os.Stat(path); err == nil {
 		if !info.Mode().IsRegular() {
 			return fmt.Errorf("配置路径不是普通文件")
 		}
 		mode = info.Mode().Perm() & 0600
 	}
-	if err := os.MkdirAll(filepath.Dir(d.path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(filepath.Dir(d.path), ".tssh-config-*")
+	file, err := os.CreateTemp(filepath.Dir(path), ".tssh-config-*")
 	if err != nil {
 		return err
 	}
@@ -296,14 +302,14 @@ func (d *hostConfigDocument) write(content []byte) error {
 		return err
 	}
 	// Recheck immediately before replacing the file, including external creation.
-	current, err = os.ReadFile(d.path)
-	if err != nil && !(os.IsNotExist(err) && d.original == nil) {
+	current, err = os.ReadFile(path)
+	if err != nil && !(os.IsNotExist(err) && original == nil) {
 		return err
 	}
-	if (err == nil && d.original == nil) || !bytes.Equal(current, d.original) {
-		return fmt.Errorf("配置文件已被其他程序修改，请取消并重新打开表单")
+	if (err == nil && original == nil) || !bytes.Equal(current, original) {
+		return fmt.Errorf("配置文件已被其他程序修改，请重新打开后重试")
 	}
-	if err := os.Rename(file.Name(), d.path); err != nil {
+	if err := os.Rename(file.Name(), path); err != nil {
 		return err
 	}
 	return nil

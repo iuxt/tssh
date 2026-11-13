@@ -281,6 +281,7 @@ func getAllHosts() []*sshHost {
 		if userConfig.config != nil {
 			userConfig.allHosts = append(userConfig.allHosts, recursiveGetHosts(userConfig.config.Hosts)...)
 		}
+		userConfig.applyHostOrder()
 		addAfterLoginFunc(func() { userConfig.allHosts = nil; userConfig.wildcardPatterns = nil })
 	})
 
