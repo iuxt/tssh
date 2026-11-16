@@ -580,7 +580,7 @@ func NewPattern(s string) (*Pattern, error) {
 		case '*':
 			buf.WriteString(".*")
 		case '?':
-			buf.WriteString(".?")
+			buf.WriteByte('.')
 		default:
 			// borrowing from QuoteMeta here.
 			if special(b) {

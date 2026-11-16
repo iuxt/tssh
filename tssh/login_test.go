@@ -88,3 +88,32 @@ func TestProxyNoneInConfig(t *testing.T) {
 	assert.Empty(t, command.proxies)
 	assert.Empty(t, command.command)
 }
+
+func TestConnectionOptionOverrides(t *testing.T) {
+	previous, previousTerminal := userConfig, isTerminal
+	defer func() { userConfig, isTerminal = previous, previousTerminal }()
+	config, err := ssh_config.DecodeBytes([]byte("Host host\n HostName config-host\n User config-user\n Port 2200\n RequestTTY no\n"))
+	require.NoError(t, err)
+	userConfig = &tsshConfig{config: config}
+	isTerminal = false
+	args := &sshArgs{Destination: "dest-user@host:2300", Option: sshOption{options: map[string][]string{
+		"hostname": {"option-%h"}, "user": {"option-user"}, "port": {"2400"}, "requesttty": {"force"},
+	}}}
+	param, err := getSshParam(args, false)
+	require.NoError(t, err)
+	assert.Equal(t, "option-host", param.host)
+	assert.Equal(t, "option-user", param.user)
+	assert.Equal(t, "2400", param.port)
+	_, tty, err := parseCmdAndTTY(param)
+	require.NoError(t, err)
+	assert.True(t, tty)
+
+	args.LoginName, args.Port, args.DisableTTY = "flag-user", 2500, true
+	param, err = getSshParam(args, false)
+	require.NoError(t, err)
+	assert.Equal(t, "flag-user", param.user)
+	assert.Equal(t, "2500", param.port)
+	_, tty, err = parseCmdAndTTY(param)
+	require.NoError(t, err)
+	assert.False(t, tty)
+}

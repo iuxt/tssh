@@ -68,3 +68,33 @@ func TestSetEnvCollectsRepeatedOptionsAndConfig(t *testing.T) {
 	assert.Equal(t, []string{"FROM_OPTION", "SECOND_OPTION", "FROM_CONFIG", "SECOND_CONFIG"},
 		[]string{values[0].name, values[1].name, values[2].name, values[3].name})
 }
+
+func TestSendEnvClearsPreviouslyConfiguredPatterns(t *testing.T) {
+	previous := userConfig
+	defer func() { userConfig = previous }()
+	userConfig = &tsshConfig{}
+	t.Setenv("TSSH_REVIEW_SECRET", "secret")
+	t.Setenv("TSSH_REVIEW_OTHER", "other")
+	for _, test := range []struct {
+		name  string
+		rules []string
+		want  []string
+	}{
+		{"remove previous name", []string{"TSSH_REVIEW_SECRET", "-TSSH_REVIEW_*"}, nil},
+		{"remove wildcard", []string{"TSSH_REVIEW_*", "-TSSH_*"}, nil},
+		{"negative matches patterns, not values", []string{"TSSH_REVIEW_*", "-TSSH_REVIEW_SECRET"}, []string{"TSSH_REVIEW_OTHER", "TSSH_REVIEW_SECRET"}},
+		{"readd after clearing", []string{"TSSH_REVIEW_*", "-TSSH_*", "TSSH_REVIEW_OTHER"}, []string{"TSSH_REVIEW_OTHER"}},
+		{"clear before adding", []string{"-TSSH_*", "TSSH_REVIEW_SECRET"}, []string{"TSSH_REVIEW_SECRET"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := &sshArgs{Destination: "host", Option: sshOption{options: map[string][]string{"sendenv": test.rules}}}
+			envs, err := getSendEnvs(args)
+			require.NoError(t, err)
+			var names []string
+			for _, env := range envs {
+				names = append(names, env.name)
+			}
+			assert.ElementsMatch(t, test.want, names)
+		})
+	}
+}

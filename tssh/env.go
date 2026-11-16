@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -38,7 +39,6 @@ type sshEnv struct {
 
 type sendEnvRule struct {
 	pattern string
-	negate  bool
 	re      *regexp.Regexp
 }
 
@@ -49,13 +49,8 @@ func getSendEnvs(args *sshArgs) ([]*sshEnv, error) {
 			continue
 		}
 
-		rule := sendEnvRule{}
-		if strings.HasPrefix(env, "-") {
-			rule.negate = true
-			rule.pattern = env[1:]
-		} else {
-			rule.pattern = env
-		}
+		remove := strings.HasPrefix(env, "-")
+		rule := sendEnvRule{pattern: strings.TrimPrefix(env, "-")}
 		if rule.pattern == "" {
 			continue
 		}
@@ -70,8 +65,16 @@ func getSendEnvs(args *sshArgs) ([]*sshEnv, error) {
 		if err != nil {
 			return nil, fmt.Errorf("compile SendEnv [%s] regexp [%s] failed: %v", env, expr, err)
 		}
-		rule.re = re
-		rules = append(rules, rule)
+		if remove {
+			// A negative SendEnv removes previously configured patterns;
+			// it is not a blacklist applied to environment variable names.
+			rules = slices.DeleteFunc(rules, func(previous sendEnvRule) bool {
+				return re.MatchString(previous.pattern)
+			})
+		} else {
+			rule.re = re
+			rules = append(rules, rule)
+		}
 	}
 
 	if len(rules) == 0 {
@@ -90,16 +93,12 @@ func getSendEnvs(args *sshArgs) ([]*sshEnv, error) {
 
 		for _, rule := range rules {
 			if rule.re.MatchString(name) {
-				if rule.negate {
-					debug("ignored env: %s (matches rule: -%s)", name, rule.pattern)
-				} else {
-					debug("sending env: %s (matches rule: %s)", name, rule.pattern)
-					var value string
-					if pos >= 0 {
-						value = env[pos+1:]
-					}
-					envs = append(envs, &sshEnv{name, value})
+				debug("sending env: %s (matches rule: %s)", name, rule.pattern)
+				var value string
+				if pos >= 0 {
+					value = env[pos+1:]
 				}
+				envs = append(envs, &sshEnv{name, value})
 				break
 			}
 		}

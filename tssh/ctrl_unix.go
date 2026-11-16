@@ -29,12 +29,14 @@ package tssh
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -43,6 +45,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/creack/pty"
+	"github.com/trzsz/ssh_config"
 )
 
 const kOpenSSH = "ssh"
@@ -223,9 +226,53 @@ func (c *controlMaster) quit(exitCh <-chan struct{}) {
 	timer.Stop()
 }
 
-func startControlMaster(param *sshParam, sshPath string) error {
+// Ignore only tssh extensions. OpenSSH still validates all options it supports.
+const controlIgnoreUnknown = "GroupLabels,HideHost,Password,PasswordCommand,Passphrase,PassphraseCommand,enc*," +
+	"QuestionAnswer*,Totp*,Otp*,Expect*,CtrlExpect*,Enable*,DragFileUploadCommand," +
+	"DefaultUploadPath,DefaultDownloadPath,ProgressColorPair,SetTerminalTitle,ConsoleEscapeTime,DnsSrvName,Waypipe*"
+
+func controlIgnoredOptions(args *sshArgs) string {
+	patterns := []string{controlIgnoreUnknown}
+	if configured := getOptionConfig(args, "IgnoreUnknown"); configured != "" {
+		patterns = append(patterns, configured)
+	}
+	// Keyboard-interactive answers may use a hex-encoded question as the key.
+	// Include every scope: OpenSSH validates unknown options in inactive blocks
+	// too, and the native child reads the same Include files as the parent.
+	var collect func(*ssh_config.Config)
+	collect = func(config *ssh_config.Config) {
+		if config == nil {
+			return
+		}
+		for _, host := range config.Hosts {
+			for _, node := range host.Nodes {
+				switch node := node.(type) {
+				case *ssh_config.KV:
+					key := strings.TrimSuffix(strings.ToLower(node.Key), "command")
+					if _, err := hex.DecodeString(key); key != "" && err == nil {
+						patterns = append(patterns, node.Key)
+					}
+				case *ssh_config.Include:
+					for _, path := range node.GetPaths() {
+						collect(node.GetFiles()[path])
+					}
+				}
+			}
+		}
+	}
+	collect(userConfig.config)
+	return strings.Join(patterns, ",")
+}
+
+func controlMasterArgs(param *sshParam) []string {
 	cmdArgs := []string{"-T", "-oRemoteCommand=none",
+		"-oIgnoreUnknown=" + controlIgnoredOptions(param.args),
 		"-oConnectTimeout=" + strconv.Itoa(int(getConnectTimeout(param.args)/time.Second))}
+	configPath := "none"
+	if userConfig != nil && isFileExist(userConfig.configPath) {
+		configPath = userConfig.configPath
+	}
+	cmdArgs = append(cmdArgs, "-F", configPath, "-oHostName="+param.host, "-l", param.user, "-p", param.port)
 
 	args := param.args
 	if args.Debug {
@@ -257,17 +304,8 @@ func startControlMaster(param *sshParam, sshPath string) error {
 		}
 	}
 
-	if args.LoginName != "" {
-		cmdArgs = append(cmdArgs, "-l", args.LoginName)
-	}
-	if args.Port != 0 {
-		cmdArgs = append(cmdArgs, "-p", strconv.Itoa(args.Port))
-	}
 	if args.CipherSpec != "" {
 		cmdArgs = append(cmdArgs, "-c", args.CipherSpec)
-	}
-	if args.ConfigFile != "" {
-		cmdArgs = append(cmdArgs, "-F", args.ConfigFile)
 	}
 	if args.ProxyJump != "" {
 		cmdArgs = append(cmdArgs, "-J", args.ProxyJump)
@@ -297,13 +335,54 @@ func startControlMaster(param *sshParam, sshPath string) error {
 		}
 	}
 
-	if args.originalDest != "" {
-		cmdArgs = append(cmdArgs, args.originalDest)
-	} else {
-		cmdArgs = append(cmdArgs, args.Destination)
-	}
+	// getSshParam has removed tssh's user@host:port syntax. Keep the alias
+	// for Host matching, passing its resolved connection values above.
+	cmdArgs = append(cmdArgs, args.Destination)
 	// 10 seconds is enough for tssh to connect
 	cmdArgs = append(cmdArgs, "echo ok; sleep 10")
+	return cmdArgs
+}
+
+func controlConfigContent(args *sshArgs) (string, error) {
+	content := "IgnoreUnknown " + controlIgnoredOptions(args) + "\n"
+	if userConfig != nil && isFileExist(userConfig.configPath) {
+		path, err := filepath.Abs(userConfig.configPath)
+		if err != nil {
+			return "", err
+		}
+		content += "Include " + strconv.Quote(path) + "\n"
+	}
+	return content, nil
+}
+
+func startControlMaster(param *sshParam, sshPath string) error {
+	cmdArgs := controlMasterArgs(param)
+	// OpenSSH propagates -F to ProxyJump children, but not command-line
+	// IgnoreUnknown. Put the extension rules in a wrapper config so every hop
+	// can read the same tssh configuration. Once login completes, all children
+	// have read it and the temporary wrapper can be removed.
+	config, err := os.CreateTemp("", "tssh-control-*.conf")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(config.Name())
+	defer config.Close()
+	content, err := controlConfigContent(param.args)
+	if err != nil {
+		return err
+	}
+	if err := writeAll(config, []byte(content)); err != nil {
+		return err
+	}
+	if err := config.Close(); err != nil {
+		return err
+	}
+	for i := 0; i+1 < len(cmdArgs); i++ {
+		if cmdArgs[i] == "-F" {
+			cmdArgs[i+1] = config.Name()
+			break
+		}
+	}
 
 	if enableDebugLogging {
 		debug("control master: %s %s", sshPath, strings.Join(cmdArgs, " "))

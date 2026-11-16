@@ -110,7 +110,7 @@ func (p *sshParser) parseKV() sshParserStateFn {
 		return p.parseMatch(val, hasEquals, comment)
 	}
 	if strings.ToLower(key.val) == "host" {
-		strPatterns := strings.Split(val.val, " ")
+		strPatterns := strings.Fields(val.val)
 		patterns := make([]*Pattern, 0)
 		for i := range strPatterns {
 			if strPatterns[i] == "" {
@@ -200,7 +200,11 @@ func (p *sshParser) parseMatch(val *token, hasEquals bool, comment string) sshPa
 	// or "all".
 	trimmed := strings.TrimRightFunc(val.val, unicode.IsSpace)
 	spaceBeforeComment := val.val[len(trimmed):]
-	fields := strings.Fields(trimmed)
+	fields, err := shlex.Split(trimmed)
+	if err != nil {
+		p.raiseError(val, err)
+		return nil
+	}
 	if len(fields) == 0 {
 		p.raiseErrorf(val, "ssh_config: Match directive requires at least one criterion")
 		return nil
@@ -209,6 +213,9 @@ func (p *sshParser) parseMatch(val *token, hasEquals bool, comment string) sshPa
 
 	switch criterion {
 	case "all":
+		if len(fields) != 1 {
+			return p.skipUntilNextBlock
+		}
 		// "Match all" is equivalent to "Host *" — matches everything.
 		p.config.Hosts = append(p.config.Hosts, &Host{
 			Patterns:           []*Pattern{matchAll},
@@ -222,8 +229,22 @@ func (p *sshParser) parseMatch(val *token, hasEquals bool, comment string) sshPa
 		return p.parseStart
 
 	case "host":
+		if len(fields) < 2 {
+			p.raiseErrorf(val, "ssh_config: Match Host requires at least one pattern")
+			return nil
+		}
+		// Keep legacy whitespace-separated host patterns, but never interpret
+		// additional Match criteria as hostnames. Unsupported conditions must
+		// disable the whole block rather than broaden its scope.
+		for _, field := range fields[2:] {
+			switch strings.ToLower(strings.TrimPrefix(field, "!")) {
+			case "all", "host", "originalhost", "user", "localuser", "exec",
+				"canonical", "final", "tagged", "localnetwork", "command":
+				return p.skipUntilNextBlock
+			}
+		}
 		patterns := make([]*Pattern, 0)
-		for _, s := range fields[1:] {
+		for _, s := range strings.Split(strings.Join(fields[1:], ","), ",") {
 			if s == "" {
 				continue
 			}

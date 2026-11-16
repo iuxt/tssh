@@ -201,6 +201,9 @@ func TestReplaceKnownHostPreservesOtherHosts(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "known_hosts")
 			content := "# keep this comment\n" + knownhosts.Line([]string{"unrelated"}, unrelated) + "\n" + knownhosts.Line(hosts, oldKey) + " comment"
 			require.NoError(t, os.WriteFile(path, []byte(content), 0640))
+			// Compare the permissions reported by the platform; Windows does not preserve Unix mode bits.
+			originalInfo, err := os.Stat(path)
+			require.NoError(t, err)
 			host := "changed-host:22"
 			if hosts[0] == "[changed-host]:2222" {
 				host = "changed-host:2222"
@@ -224,7 +227,7 @@ func TestReplaceKnownHostPreservesOtherHosts(t *testing.T) {
 			assert.Contains(t, string(updated), "# keep this comment\n")
 			info, err := os.Stat(path)
 			require.NoError(t, err)
-			assert.Equal(t, os.FileMode(0640), info.Mode().Perm())
+			assert.Equal(t, originalInfo.Mode().Perm(), info.Mode().Perm())
 		})
 	}
 }

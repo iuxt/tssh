@@ -25,8 +25,11 @@ SOFTWARE.
 package tssh
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,3 +49,26 @@ func TestExpectStopsWhenOutputCloses(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, io.EOF)
 }
+
+type expectBufferCloser struct{ bytes.Buffer }
+
+func (w *expectBufferCloser) Close() error { return nil }
+
+func TestExpectForwardsUnconsumedOutputOnReadError(t *testing.T) {
+	for _, readError := range []error{io.EOF, errors.New("connection lost")} {
+		t.Run(readError.Error(), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			expect := &sshExpect{ctx: ctx}
+			ch := make(chan []byte, 10)
+			writer := &expectBufferCloser{}
+			reader := io.MultiReader(strings.NewReader("final output"), expectErrorReader{readError})
+			expect.wrapOutput(reader, writer, ch)
+			assert.Equal(t, "final output", writer.String())
+		})
+	}
+}
+
+type expectErrorReader struct{ err error }
+
+func (r expectErrorReader) Read([]byte) (int, error) { return 0, r.err }

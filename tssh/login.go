@@ -155,7 +155,7 @@ func getSshParam(args *sshArgs, proxy bool) (*sshParam, error) {
 
 	// login host
 	param.host = destHost
-	if hostName := getConfig(destHost, "HostName"); hostName != "" {
+	if hostName := getOptionConfig(args, "HostName"); hostName != "" {
 		expandedHostName, err := expandTokens(hostName, param, "%h")
 		if err != nil {
 			return nil, fmt.Errorf("expand HostName [%s] failed: %v", hostName, err)
@@ -174,6 +174,8 @@ func getSshParam(args *sshArgs, proxy bool) (*sshParam, error) {
 	// login user
 	if args.LoginName != "" {
 		param.user = args.LoginName
+	} else if optionUser := args.Option.get("User"); optionUser != "" {
+		param.user = optionUser
 	} else if destUser != "" {
 		param.user = destUser
 	} else {
@@ -196,6 +198,8 @@ func getSshParam(args *sshArgs, proxy bool) (*sshParam, error) {
 	// login port
 	if args.Port > 0 {
 		param.port = strconv.Itoa(args.Port)
+	} else if optionPort := args.Option.get("Port"); optionPort != "" {
+		param.port = optionPort
 	} else if destPort != "" {
 		param.port = destPort
 	} else {
@@ -434,7 +438,7 @@ func parseCmdAndTTY(param *sshParam) (cmd string, tty bool, err error) {
 		return
 	}
 
-	requestTTY := getConfig(args.Destination, "RequestTTY")
+	requestTTY := getOptionConfig(args, "RequestTTY")
 	switch strings.ToLower(requestTTY) {
 	case "", "auto":
 		tty = isTerminal && (cmd == "")
@@ -451,31 +455,6 @@ func parseCmdAndTTY(param *sshParam) (cmd string, tty bool, err error) {
 }
 
 var lastServerAliveTime atomic.Int64
-
-type connWithTimeout struct {
-	net.Conn
-	timeout   time.Duration
-	firstRead bool
-}
-
-func (c *connWithTimeout) Read(b []byte) (n int, err error) {
-	if !c.firstRead {
-		n, err = c.Conn.Read(b)
-		if err == nil {
-			lastServerAliveTime.Store(time.Now().UnixMilli())
-		}
-		return
-	}
-	if c.timeout > 0 {
-		n, err = doWithTimeout(func() (int, error) {
-			return c.Conn.Read(b)
-		}, c.timeout)
-	} else {
-		n, err = c.Conn.Read(b)
-	}
-	c.firstRead = false
-	return
-}
 
 func setupLogLevel(args *sshArgs) func() {
 	previousDebug, previousWarning := enableDebugLogging, enableWarningLogging
@@ -570,7 +549,7 @@ func connectViaProxyJump(param *sshParam, config *ssh.ClientConfig) (SshClient, 
 		return nil, fmt.Errorf("proxy jump [%s] dial [%s] [%s] failed: %v", param.proxy.name, network, param.addr, err)
 	}
 	param.setNetworkAddressFamily(conn)
-	ncc, chans, reqs, err := ssh.NewClientConn(&connWithTimeout{conn, config.Timeout, true}, param.addr, config)
+	ncc, chans, reqs, err := newClientConnWithTimeout(conn, param.addr, config)
 	if err != nil {
 		return nil, fmt.Errorf("proxy jump [%s] new conn [%s] failed: %v", param.proxy.name, param.addr, err)
 	}
@@ -588,21 +567,9 @@ func connectViaProxyCommand(param *sshParam, config *ssh.ClientConfig) (SshClien
 	if err != nil {
 		return nil, fmt.Errorf("proxy command [%s] exec failed: %v", cmd, err)
 	}
-	var timedOut atomic.Bool
-	var timer *time.Timer
-	if config.Timeout > 0 {
-		timer = time.AfterFunc(config.Timeout, func() {
-			timedOut.Store(true)
-			_ = conn.Close()
-		})
-		defer timer.Stop()
-	}
-	ncc, chans, reqs, err := ssh.NewClientConn(conn, param.addr, config)
+	ncc, chans, reqs, err := newClientConnWithTimeout(conn, param.addr, config)
 	if err != nil {
 		_ = conn.Close()
-		if timedOut.Load() {
-			return nil, fmt.Errorf("proxy command [%s] connection timed out after %s: %w", cmd, config.Timeout, err)
-		}
 		return nil, fmt.Errorf("proxy command [%s] new conn [%s] failed: %v", cmd, param.addr, err)
 	}
 	debug("login to [%s] via proxy command [%s] success", param.args.Destination, cmd)
@@ -621,7 +588,7 @@ func connectDirectly(param *sshParam, config *ssh.ClientConfig) (SshClient, erro
 		return nil, fmt.Errorf("login to [%s] dial [%s] [%s] failed: %v", param.args.Destination, network, param.addr, err)
 	}
 	param.setNetworkAddressFamily(conn)
-	ncc, chans, reqs, err := ssh.NewClientConn(&connWithTimeout{conn, config.Timeout, true}, param.addr, config)
+	ncc, chans, reqs, err := newClientConnWithTimeout(conn, param.addr, config)
 	if err != nil {
 		return nil, fmt.Errorf("login to [%s] new conn [%s] failed: %v", param.args.Destination, param.addr, err)
 	}

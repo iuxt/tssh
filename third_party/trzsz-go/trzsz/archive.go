@@ -200,6 +200,9 @@ func (f *archiveFileWriter) Write(p []byte) (int, error) {
 		f.left -= int64(n)
 		return n, err
 	}
+	if err := f.Close(); err != nil {
+		return 0, err
+	}
 	idx := bytes.IndexByte(p, '\n')
 	if idx < 0 {
 		f.buf = append(f.buf, p...)
@@ -229,7 +232,9 @@ func (f *archiveFileWriter) Write(p []byte) (int, error) {
 
 func (f *archiveFileWriter) Close() error {
 	if f.file != nil {
-		return f.file.Close()
+		file := f.file
+		f.file = nil
+		return file.Close()
 	}
 	return nil
 }

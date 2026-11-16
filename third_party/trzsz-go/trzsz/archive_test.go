@@ -117,6 +117,7 @@ func TestArchiveReadAndWrite(t *testing.T) {
 	assert.Equal(7, len(srcFiles))
 
 	transfer := newTransfer(nil, nil)
+	defer transfer.cleanup()
 	transfer.transferConfig.Overwrite = false
 	transfer.transferConfig.Protocol = kProtocolVersion4
 	defer transfer.deleteCreatedFiles()

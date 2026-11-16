@@ -532,6 +532,7 @@ func (filter *TrzszFilter) handleTrzsz() {
 	done := make(chan struct{}, 1)
 	go func() {
 		defer close(done)
+		defer transfer.cleanup()
 		defer func() {
 			if err := recover(); err != nil {
 				transfer.clientError(newTrzszError(fmt.Sprintf("%v", err), "panic", true))
@@ -551,8 +552,6 @@ func (filter *TrzszFilter) handleTrzsz() {
 		if err != nil {
 			transfer.clientError(err)
 		}
-		transfer.cleanup()
-		done <- struct{}{}
 	}()
 
 	select {

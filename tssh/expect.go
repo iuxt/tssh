@@ -316,9 +316,6 @@ func (e *sshExpect) wrapOutput(reader io.Reader, writer io.WriteCloser, ch chan 
 		return
 	}
 	buf, err := e.captureOutput(reader, ch)
-	if err != nil {
-		return
-	}
 	if writer == nil {
 		return
 	}
@@ -333,6 +330,9 @@ func (e *sshExpect) wrapOutput(reader io.Reader, writer io.WriteCloser, ch chan 
 			warning("expect write output failed: %v", err)
 			return
 		}
+	}
+	if err != nil {
+		return
 	}
 	if _, err := io.Copy(writer, reader); err != nil && err != io.EOF {
 		warning("expect copy output failed: %v", err)

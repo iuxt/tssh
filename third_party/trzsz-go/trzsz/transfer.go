@@ -107,6 +107,7 @@ type trzszTransfer struct {
 	transferConfig   transferConfig
 	trzszFilter      *TrzszFilter
 	createdFiles     []string
+	receiveRoot      *os.Root
 	tunnelConnected  bool
 	tunnelConn       atomic.Pointer[net.Conn]
 	tunnelInitWG     sync.WaitGroup
@@ -231,6 +232,9 @@ func (t *trzszTransfer) connectToTunnel(connector func(int) net.Conn, uniqueID s
 }
 
 func (t *trzszTransfer) cleanup() {
+	if t.receiveRoot != nil {
+		_ = t.receiveRoot.Close()
+	}
 	if conn := t.tunnelConn.Load(); conn != nil {
 		_ = (*conn).Close()
 	}
@@ -744,11 +748,18 @@ func (t *trzszTransfer) resetTerm(msg string, ignorable bool) {
 
 func (t *trzszTransfer) deleteCreatedFiles() []string {
 	var deletedFiles []string
+	if t.receiveRoot == nil {
+		return deletedFiles
+	}
 	for _, path := range t.createdFiles {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		rel, err := t.receiveRelativePath(path)
+		if err != nil {
 			continue
 		}
-		if err := os.RemoveAll(path); err == nil {
+		if _, err := t.receiveRoot.Stat(rel); os.IsNotExist(err) {
+			continue
+		}
+		if err := t.receiveRoot.RemoveAll(rel); err == nil {
 			deletedFiles = append(deletedFiles, path)
 		}
 	}
@@ -1006,6 +1017,42 @@ func (t *trzszTransfer) addCreatedFiles(path string) {
 	t.createdFiles = append(t.createdFiles, path)
 }
 
+// Pin the user-selected directory for the entire transfer. Root operations
+// reject escapes through symlinks even if a path changes during a syscall.
+func (t *trzszTransfer) openReceiveRoot(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if t.receiveRoot != nil {
+		if t.receiveRoot.Name() != abs {
+			return simpleTrzszError("Receive directory changed: %s", path)
+		}
+		return nil
+	}
+	t.receiveRoot, err = os.OpenRoot(abs)
+	return err
+}
+
+func validateReceiveName(name string) error {
+	if name == "." || !filepath.IsLocal(name) || strings.ContainsAny(name, `/\`) {
+		return simpleTrzszError("Invalid received file name: %q", name)
+	}
+	return nil
+}
+
+func (t *trzszTransfer) receiveRelativePath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(t.receiveRoot.Name(), abs)
+	if err != nil || !filepath.IsLocal(rel) {
+		return "", simpleTrzszError("Path outside receive directory: %s", path)
+	}
+	return rel, nil
+}
+
 func (t *trzszTransfer) doCreateFile(path string, truncate bool, perm *uint32) (fileWriter, error) {
 	flag := os.O_RDWR | os.O_CREATE
 	if truncate {
@@ -1015,7 +1062,11 @@ func (t *trzszTransfer) doCreateFile(path string, truncate bool, perm *uint32) (
 	if perm != nil {
 		fileMode = fs.FileMode(*perm) | 0600
 	}
-	file, err := os.OpenFile(path, flag, fileMode)
+	rel, err := t.receiveRelativePath(path)
+	if err != nil {
+		return nil, err
+	}
+	file, err := t.receiveRoot.OpenFile(rel, flag, fileMode)
 	if err != nil {
 		if e, ok := err.(*fs.PathError); ok {
 			if errno, ok := e.Unwrap().(syscall.Errno); ok {
@@ -1033,13 +1084,17 @@ func (t *trzszTransfer) doCreateFile(path string, truncate bool, perm *uint32) (
 }
 
 func (t *trzszTransfer) doCreateDirectory(path string, perm *uint32) error {
-	stat, err := os.Stat(path)
+	rel, err := t.receiveRelativePath(path)
+	if err != nil {
+		return err
+	}
+	stat, err := t.receiveRoot.Stat(rel)
 	if os.IsNotExist(err) {
 		fileMode := fs.FileMode(0755)
 		if perm != nil {
 			fileMode = fs.FileMode(*perm) | 0700
 		}
-		err := os.MkdirAll(path, fileMode)
+		err := t.receiveRoot.MkdirAll(rel, fileMode)
 		if err != nil {
 			return err
 		}
@@ -1055,6 +1110,12 @@ func (t *trzszTransfer) doCreateDirectory(path string, perm *uint32) error {
 }
 
 func (t *trzszTransfer) createFile(path, fileName string, truncate bool, perm *uint32) (fileWriter, string, error) {
+	if err := validateReceiveName(fileName); err != nil {
+		return nil, "", err
+	}
+	if err := t.openReceiveRoot(path); err != nil {
+		return nil, "", err
+	}
 	var localName string
 	if t.transferConfig.Overwrite {
 		localName = fileName
@@ -1073,6 +1134,17 @@ func (t *trzszTransfer) createFile(path, fileName string, truncate bool, perm *u
 }
 
 func (t *trzszTransfer) createDirOrFile(path string, srcFile *sourceFile, truncate bool) (fileWriter, string, error) {
+	if len(srcFile.RelPath) == 0 {
+		return nil, "", simpleTrzszError("Empty received path")
+	}
+	for _, name := range srcFile.RelPath {
+		if err := validateReceiveName(name); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := t.openReceiveRoot(path); err != nil {
+		return nil, "", err
+	}
 	var localName string
 	if t.transferConfig.Overwrite {
 		localName = srcFile.RelPath[0]
