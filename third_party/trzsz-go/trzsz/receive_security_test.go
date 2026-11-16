@@ -122,10 +122,12 @@ func TestReceiveCleanupCannotFollowReplacedDirectory(t *testing.T) {
 }
 
 func TestArchiveClosesEveryMember(t *testing.T) {
+	dest := t.TempDir()
 	transfer := receivingTransfer(t)
-	w, _, err := transfer.createDirOrFile(t.TempDir(), &sourceFile{RelPath: []string{"bundle"}, IsDir: true, Archive: true}, true)
+	w, _, err := transfer.createDirOrFile(dest, &sourceFile{RelPath: []string{"bundle"}, IsDir: true, Archive: true}, true)
 	require.NoError(t, err)
 	writer := w.(*archiveFileWriter)
+	t.Cleanup(func() { _ = writer.Close() })
 	header := func(name string, size int64) string {
 		src := &sourceFile{RelPath: []string{"bundle", name}, Size: size}
 		json, err := src.marshalSourceFile()
@@ -141,18 +143,19 @@ func TestArchiveClosesEveryMember(t *testing.T) {
 	next := header("empty", 0)
 	_, err = io.WriteString(writer, next[:1])
 	require.NoError(t, err)
-	_, err = first.Stat()
+	// Read reports os.ErrClosed on every platform; Stat may return a Windows handle error.
+	_, err = first.Read(make([]byte, 1))
 	assert.ErrorIs(t, err, os.ErrClosed)
 	_, err = io.WriteString(writer, next[1:])
 	require.NoError(t, err)
 	empty := writer.file.getFile()
 	_, err = io.WriteString(writer, header("last", 0))
 	require.NoError(t, err)
-	_, err = empty.Stat()
+	_, err = empty.Read(make([]byte, 1))
 	assert.ErrorIs(t, err, os.ErrClosed)
 	last := writer.file.getFile()
 	require.NoError(t, writer.Close())
 	require.NoError(t, writer.Close())
-	_, err = last.Stat()
+	_, err = last.Read(make([]byte, 1))
 	assert.ErrorIs(t, err, os.ErrClosed)
 }
