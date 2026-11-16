@@ -323,6 +323,23 @@ Host otp-numbered
 
 
 # -----------------------------------------------------------------------------
+# Terminal keep alive (automatic character input)
+# -----------------------------------------------------------------------------
+# Disabled by default. Only applies to terminal sessions with a remote TTY.
+# Pauses during file transfers and while the tssh console is open.
+# Characters act like keyboard input and can affect the running application.
+# ServerAliveInterval below remains the separate SSH protocol keep alive.
+
+Host keepalive-terminal
+    HostName terminal.example.com
+    EnableTerminalKeepAlive yes
+    TerminalKeepAliveInterval 60
+    # Default: a space. Escapes such as \x20, \b, \t, \r, \n and \\ are supported.
+    # No Enter is appended. Use \x20\b for a space followed by backspace.
+    TerminalKeepAliveChars \x20
+
+
+# -----------------------------------------------------------------------------
 # Automated interaction
 # -----------------------------------------------------------------------------
 #

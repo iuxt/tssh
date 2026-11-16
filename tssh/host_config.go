@@ -242,7 +242,16 @@ func validateHostField(key, value string) error {
 		if err != nil || n < 0 {
 			return fmt.Errorf("%s 必须为非负整数", key)
 		}
-	case "ForwardAgent", "IdentitiesOnly", "PasswordAuthentication", "PubkeyAuthentication", "Compression",
+	case "TerminalKeepAliveInterval":
+		n, err := strconv.ParseUint(value, 10, 32)
+		if err != nil || n == 0 {
+			return fmt.Errorf("字符保活间隔必须为正整数（1–4294967295 秒）")
+		}
+	case "TerminalKeepAliveChars":
+		if _, err := decodeTerminalKeepAliveChars(value); err != nil {
+			return fmt.Errorf("保活发送字符的转义无效；空格请填写 \\x20，退格请填写 \\b")
+		}
+	case "ForwardAgent", "IdentitiesOnly", "PasswordAuthentication", "PubkeyAuthentication", "Compression", "EnableTerminalKeepAlive",
 		"ExitOnForwardFailure", "EnableTrzsz", "EnableZmodem", "EnableDragFile", "EnableOSC52", "EnableSessionLog":
 		if !strings.EqualFold(value, "yes") && !strings.EqualFold(value, "no") {
 			return fmt.Errorf("%s 请填写 yes 或 no", key)

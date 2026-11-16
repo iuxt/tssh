@@ -57,6 +57,9 @@ func TestPromptConfigDefaults(t *testing.T) {
 	assert.Equal(t, "yes", entries["enablezmodem"].value)
 	assert.Equal(t, "no", entries["enableosc52"].value)
 	assert.Equal(t, "no", entries["enablesessionlog"].value)
+	assert.Equal(t, "no", entries["enableterminalkeepalive"].value)
+	assert.Equal(t, "60", entries["terminalkeepaliveinterval"].value)
+	assert.Equal(t, `\x20`, entries["terminalkeepalivechars"].value)
 	assert.Equal(t, "1", entries["consoleescapetime"].value)
 	assert.Equal(t, "30", entries["expecttimeout"].value)
 	assert.Equal(t, "未设置", entries["proxycommand"].value)
@@ -82,6 +85,9 @@ Host other
     Password local-secret
     EnableZmodem yes
     EnableSessionLog no
+    EnableTerminalKeepAlive no
+    TerminalKeepAliveInterval 30
+    TerminalKeepAliveChars \x20
 Include "` + filepath.ToSlash(included) + `"
 Host *
     User deploy
@@ -97,6 +103,9 @@ Host *
     Password extension-secret
     EnableZmodem no
     EnableSessionLog yes
+    EnableTerminalKeepAlive yes
+    TerminalKeepAliveInterval 90
+    TerminalKeepAliveChars \x20\b
     GroupLabels database
     CustomOption extension-value
     PasswordCommand touch should-never-run
@@ -116,6 +125,12 @@ Host *
 	assert.Equal(t, "扩展配置", entries["enablezmodem"].source)
 	assert.Equal(t, "yes", entries["enablesessionlog"].value)
 	assert.Equal(t, "扩展配置", entries["enablesessionlog"].source)
+	assert.Equal(t, "yes", entries["enableterminalkeepalive"].value)
+	assert.Equal(t, "90", entries["terminalkeepaliveinterval"].value)
+	assert.Equal(t, `\x20\b`, entries["terminalkeepalivechars"].value)
+	for _, key := range []string{"enableterminalkeepalive", "terminalkeepaliveinterval", "terminalkeepalivechars"} {
+		assert.Equal(t, "扩展配置", entries[key].source)
+	}
 	assert.Equal(t, "included-value", entries["customincluded"].value)
 	assert.Equal(t, "extension-value", entries["customoption"].value)
 	assert.NotContains(t, entries, "onlyother")

@@ -202,6 +202,22 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
       GroupLabels label4 group5
   ```
 
+### 终端保活
+
+- 在首页选中主机按 `e`，在“连接行为”中找到“自动发送保活字符”，按空格切换开关；可填写“字符保活间隔”和“保活发送字符”，按 `Ctrl+S` 保存。清空字段后继承其他匹配配置或默认值。
+
+- SSH 协议层保活继续使用 `ServerAliveInterval` 和 `ServerAliveCountMax`。如需通过自动输入字符防止终端会话空闲超时，可以单独开启 `EnableTerminalKeepAlive`（默认关闭）。
+
+  ```
+  Host my-server
+      EnableTerminalKeepAlive Yes  # 自动发送字符开关
+      TerminalKeepAliveInterval 60  # 无键盘输入多久后发送，单位秒，必须为正整数
+      TerminalKeepAliveChars \x20   # 默认空格；也可配置 \x20\b（空格后退格）
+  ```
+
+- 可配置在 `~/.tssh/config` 或 `~/.tssh/password` 中，也支持命令行 `tssh -o EnableTerminalKeepAlive=Yes my-server`。字符支持 `\xNN`、`\r`、`\n`、`\t`、`\b`、`\\` 等转义；不会额外追加回车。非法间隔或转义会产生警告并禁用本次字符保活。
+- 仅在本地终端且远程分配了 TTY 的会话中生效。键盘输入会重新计时；文件传输和 SSH 控制台打开期间暂停，会话结束后停止。自动字符相当于实际键盘输入，可能出现在命令行或影响正在运行的程序，请按主机需要开启。
+
 ### 自动交互
 
 - 支持类似 `expect` 的自动交互功能，在登录服务器之后，自动匹配服务器的输出，然后自动输入。

@@ -106,6 +106,7 @@ func setupTransferFilter(sshConn *sshConnection) error {
 	clientIn, writerIn := io.Pipe()
 	readerOut, clientOut := io.Pipe()
 	trzszFilter := newTransferFilter(sshConn, clientIn, clientOut, width, options)
+	sshConn.isTransferringFiles = trzszFilter.IsTransferringFiles
 	sshConn.serverIn, sshConn.serverOut = writerIn, readerOut
 
 	// reset terminal and close on exit

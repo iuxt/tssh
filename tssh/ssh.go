@@ -225,6 +225,8 @@ type sshConnection struct {
 	closeMu   sync.Mutex
 	exited    atomic.Bool
 	waitWarn  sync.WaitGroup
+
+	isTransferringFiles func() bool
 }
 
 func (c *sshConnection) Close() {

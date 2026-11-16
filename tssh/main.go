@@ -341,12 +341,15 @@ func sshStart(args *sshArgs) (int, error) {
 	}
 
 	// forward standard input output
+	stopTerminalKeepAlive := setupTerminalKeepAlive(sshConn)
+	defer stopTerminalKeepAlive()
 	closeSessionLog := setupSessionLogging(sshConn)
 	defer closeSessionLog()
 	forwardStdio(sshConn)
 
 	// cleanup and wait for exit
 	code := sshConn.waitUntilExit()
+	stopTerminalKeepAlive()
 	if args.Background {
 		_ = sshConn.client.Wait()
 	}

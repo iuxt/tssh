@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -106,7 +107,7 @@ func TestPromptBooleanSpaceSwitches(t *testing.T) {
 		{"IdentitiesOnly", "yes"}, {"PasswordAuthentication", "no"}, {"PubkeyAuthentication", "no"},
 		{"ForwardAgent", "yes"}, {"ExitOnForwardFailure", "yes"}, {"Compression", "yes"},
 		{"EnableTrzsz", "no"}, {"EnableZmodem", "no"}, {"EnableOSC52", "yes"}, {"EnableSessionLog", "yes"},
-		{"EnableDragFile", "yes"},
+		{"EnableDragFile", "yes"}, {"EnableTerminalKeepAlive", "yes"},
 	} {
 		t.Run(field.key, func(t *testing.T) {
 			p, _ := editorTestPrompt(t, "Host server\n HostName server.example\n")
@@ -141,6 +142,63 @@ func TestPromptBooleanSpaceSwitches(t *testing.T) {
 			pressPrompt(p, "ctrl+s")
 			require.Nil(t, p.editor, p.notice)
 			assert.Equal(t, "yes", getConfig("server", field.key), "clearing restores inheritance")
+		})
+	}
+}
+
+func TestPromptTerminalKeepAliveSettings(t *testing.T) {
+	p, path := editorTestPrompt(t, "Host server\n HostName server.example\nHost *\n TerminalKeepAliveInterval 90\n")
+	p.openEditor(false)
+	setEditorField(t, p.editor, "EnableTerminalKeepAlive", "")
+	assert.Contains(t, ansi.Strip(p.editorView().Content), "自动发送保活字符")
+	pressPrompt(p, "space")
+	assert.Equal(t, "yes", p.editor.values[p.editor.focus])
+	setEditorField(t, p.editor, "TerminalKeepAliveInterval", "30")
+	setEditorField(t, p.editor, "TerminalKeepAliveChars", `\x20\b`)
+	pressPrompt(p, "ctrl+s")
+	require.Nil(t, p.editor, p.notice)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `TerminalKeepAliveChars \x20\b`)
+	config, err := getTerminalKeepAliveConfig(&sshArgs{Destination: "server"})
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, config.interval)
+	assert.Equal(t, []byte(" \b"), config.chars)
+	p.openEditor(false)
+	value, _ := p.editor.value("TerminalKeepAliveChars")
+	assert.Equal(t, `\x20\b`, value)
+	setEditorField(t, p.editor, "TerminalKeepAliveInterval", "")
+	setEditorField(t, p.editor, "TerminalKeepAliveChars", "")
+	pressPrompt(p, "ctrl+s")
+	require.Nil(t, p.editor, p.notice)
+	config, err = getTerminalKeepAliveConfig(&sshArgs{Destination: "server"})
+	require.NoError(t, err)
+	assert.Equal(t, 90*time.Second, config.interval)
+	assert.Equal(t, []byte(" "), config.chars)
+}
+
+func TestPromptTerminalKeepAliveRejectsInvalidSettings(t *testing.T) {
+	for _, test := range []struct{ key, value string }{
+		{"EnableTerminalKeepAlive", "invalid"},
+		{"TerminalKeepAliveInterval", "0"},
+		{"TerminalKeepAliveInterval", "-1"},
+		{"TerminalKeepAliveInterval", "abc"},
+		{"TerminalKeepAliveInterval", "4294967296"},
+		{"TerminalKeepAliveChars", `\z`},
+		{"TerminalKeepAliveChars", `\x2`},
+	} {
+		t.Run(test.key+"/"+test.value, func(t *testing.T) {
+			original := "Host server\n HostName server.example\n"
+			p, path := editorTestPrompt(t, original)
+			p.openEditor(false)
+			setEditorField(t, p.editor, test.key, test.value)
+			pressPrompt(p, "ctrl+s")
+			require.NotNil(t, p.editor)
+			assert.NotEmpty(t, p.editor.err)
+			assert.Equal(t, test.key, hostEditorFields[p.editor.focus].key)
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, original, string(data))
 		})
 	}
 }
