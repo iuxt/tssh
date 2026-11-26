@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/mattn/go-isatty"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -122,12 +123,17 @@ func splitCommandLine(command string) ([]string, error) {
 	return shlex.Split(command)
 }
 
-func suspendProcess() {
+func suspendProcess(sessionProcess bool) {
 	conCh := make(chan os.Signal, 1)
 	signal.Notify(conCh, syscall.SIGCONT)
 	defer func() { signal.Stop(conCh); close(conCh) }()
 
-	if err := syscall.Kill(syscall.Getpid(), syscall.SIGSTOP); err != nil {
+	pid := os.Getpid()
+	if sessionProcess && unix.Getpgrp() == os.Getppid() {
+		// The shell manages the host prompt and the SSH child as one job.
+		pid = -os.Getppid()
+	}
+	if err := syscall.Kill(pid, syscall.SIGSTOP); err != nil {
 		warning("suspend current process failed: %v", err)
 		return
 	}

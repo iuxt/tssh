@@ -199,7 +199,7 @@ func runConsole(escapeChar byte, writer io.WriteCloser, sshConn *sshConnection) 
 		var suspend bool
 		defer func() {
 			if suspend {
-				go suspendProcess()
+				go suspendProcess(sshConn.param.args.sessionProcess)
 			}
 		}()
 		model.items = append(model.items, &menuItem{"ctrl+z", getText("console/suspend"), func() (tea.Model, tea.Cmd) {

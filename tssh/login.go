@@ -418,40 +418,39 @@ func parseRemoteCommand(param *sshParam) (string, error) {
 	return expandedCmd, nil
 }
 
-func parseCmdAndTTY(param *sshParam) (cmd string, tty bool, err error) {
-	cmd, err = parseRemoteCommand(param)
+func parseCmdAndTTY(param *sshParam) (string, bool, error) {
+	cmd, err := parseRemoteCommand(param)
 	if err != nil {
-		return
+		return "", false, err
 	}
+	tty, err := requestTerminal(param.args, cmd != "")
+	return cmd, tty, err
+}
 
-	args := param.args
+func requestTerminal(args *sshArgs, hasCommand bool) (bool, error) {
 	if args.DisableTTY && args.ForceTTY {
-		err = fmt.Errorf("cannot specify -t with -T")
-		return
+		return false, fmt.Errorf("cannot specify -t with -T")
 	}
 	if args.DisableTTY {
-		tty = false
-		return
+		return false, nil
 	}
 	if args.ForceTTY {
-		tty = true
-		return
+		return true, nil
 	}
 
 	requestTTY := getOptionConfig(args, "RequestTTY")
 	switch strings.ToLower(requestTTY) {
 	case "", "auto":
-		tty = isTerminal && (cmd == "")
+		return isTerminal && !hasCommand, nil
 	case "no", "false":
-		tty = false
+		return false, nil
 	case "force":
-		tty = true
+		return true, nil
 	case "yes", "true":
-		tty = isTerminal
+		return isTerminal, nil
 	default:
-		err = fmt.Errorf("unknown RequestTTY option: %s", requestTTY)
+		return false, fmt.Errorf("unknown RequestTTY option: %s", requestTTY)
 	}
-	return
 }
 
 var lastServerAliveTime atomic.Int64

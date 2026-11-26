@@ -137,8 +137,82 @@ func addOnCloseFunc(f func()) {
 
 var isTerminal bool = isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
 
+const sessionProcessArg = "--tssh-session-process"
+
+// Run the session in a separate process so even a blocked SSH stdin reader or
+// a forced session exit releases the terminal before the host prompt resumes.
+func runSessionProcess(argv []string, selectedDest string) (code int, interrupted bool, err error) {
+	cmd := exec.Command(getExePath(os.Args[0]), append([]string{sessionProcessArg, selectedDest}, argv...)...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
+	defer signal.Stop(signals)
+	if err := cmd.Start(); err != nil {
+		return kExitCodeLoginFailed, false, fmt.Errorf("start SSH process failed: %w", err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	for {
+		select {
+		case err := <-done:
+			if err == nil {
+				return 0, false, nil
+			}
+			if exit, ok := err.(*exec.ExitError); ok {
+				if code := exit.ExitCode(); code >= 0 {
+					return code, false, nil
+				}
+				return kExitCodeSignalKill, false, nil
+			}
+			return kExitCodeLoginFailed, false, err
+		case sig := <-signals:
+			if isRunningOnOldWindows.Load() && sig == os.Interrupt {
+				continue
+			}
+			_ = cmd.Process.Signal(sig)
+			<-done
+			return kExitCodeSignalKill, true, nil
+		}
+	}
+}
+
+func runSSH(args *sshArgs, dest string) (int, error) {
+	if args.Background {
+		parent, err := background(args, dest)
+		if err != nil {
+			return kExitCodeBackground, err
+		}
+		if parent {
+			return 0, nil
+		}
+	}
+	args.Destination, args.originalDest = dest, dest
+	return sshStart(args)
+}
+
+func promptAfterDirectSession(args sshArgs) bool {
+	if !isTerminal || args.Background || args.NoCommand || args.Subsystem || args.StdioForward != "" || args.Command != "" {
+		return false
+	}
+	remoteCommand := args.Option.get("RemoteCommand")
+	if remoteCommand != "" && !strings.EqualFold(remoteCommand, "none") {
+		return false
+	}
+	_, args.Destination, _ = parseDestination(args.Destination)
+	hasCommand := remoteCommand == "" && getConfig(args.Destination, "RemoteCommand") != ""
+	tty, _ := requestTerminal(&args, hasCommand)
+	return tty
+}
+
 // TrzMain is the main function of tssh program.
 func TsshMain(argv []string) int {
+	var selectedDest string
+	sessionProcess := len(argv) >= 2 && argv[0] == sessionProcessArg
+	if sessionProcess {
+		selectedDest, argv = argv[1], argv[2:]
+	}
+
 	// parse ssh args
 	var args sshArgs
 	parser, err := arg.NewParser(arg.Config{HideLongOptions: true, Out: os.Stderr, Exit: os.Exit}, &args)
@@ -197,47 +271,69 @@ func TsshMain(argv []string) int {
 		return code
 	}
 
-	// choose ssh alias
-	dest := ""
-	quit := false
+	if sessionProcess {
+		args.sessionProcess = true
+		dest := selectedDest
+		if dest == "" {
+			dest = args.Destination
+		}
+		var code int
+		code, err = runSSH(&args, dest)
+		if selectedDest == "" && err == nil {
+			// A directly launched interactive session completed and can open the prompt.
+			return 0
+		}
+		return code
+	}
+
+	var prompt *sshPrompt
 	if args.Destination == "" || args.Destination == "FAKE_DEST_IN_WARP" {
 		if !isTerminal {
 			fmt.Fprintln(os.Stderr, "destination is required when running tssh in non-interactive mode")
 			return kExitCodeNoDestHost
 		}
-		dest, quit, err = chooseAlias("")
+		prompt = newHostPrompt("")
 	} else {
-		dest, quit, err = predictDestination(args.Destination)
+		prompt = promptForDestination(args.Destination)
 	}
-	if quit {
-		err = nil
-		return 0
-	}
-	if err != nil || dest == "" {
-		if err == nil {
-			err = fmt.Errorf("missing destination host")
+	if prompt == nil {
+		var code int
+		if !promptAfterDirectSession(args) {
+			code, err = runSSH(&args, args.Destination)
+			return code
 		}
-		return kExitCodeNoDestHost
+		code, _, err = runSessionProcess(argv, "")
+		if err != nil || (code != 0 && code != kExitCodeForceExit) {
+			return code
+		}
+		prompt = newHostPrompt("")
 	}
 
-	// run as background
-	if args.Background {
-		var parent bool
-		parent, err = background(&args, dest)
+	for {
+		var dest string
+		var quit bool
+		dest, quit, err = prompt.chooseAlias()
 		if err != nil {
-			return kExitCodeBackground
+			return kExitCodeNoDestHost
 		}
-		if parent {
+		if quit {
 			return 0
 		}
+		var code int
+		if args.Background {
+			code, err = runSSH(&args, dest)
+			return code
+		}
+		var interrupted bool
+		code, interrupted, err = runSessionProcess(argv, dest)
+		if err != nil || interrupted {
+			return code
+		}
+		prompt.notice = ""
+		if code != 0 {
+			prompt.notice = fmt.Sprintf("%s 连接已结束（退出码 %d）", dest, code)
+		}
 	}
-
-	// start ssh program
-	args.Destination = dest
-	args.originalDest = dest
-	var code int
-	code, err = sshStart(&args)
-	return code
 }
 
 func sshStart(args *sshArgs) (int, error) {

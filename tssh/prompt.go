@@ -308,14 +308,13 @@ func (p *sshPrompt) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return p, nil
 }
 
-func chooseAlias(keywords string) (string, bool, error) {
+func (prompt *sshPrompt) chooseAlias() (string, bool, error) {
 	// Keep the stty fallback for older Windows terminals, whose custom reader
 	// cannot be detected as a TTY by Bubble Tea.
 	if state, _ := makeStdinRaw(); state != nil {
 		defer resetStdin(state)
 	}
-	prompt := newSSHPrompt(getAllHosts(), keywords)
-	prompt.config = userConfig
+	prompt.selected = nil
 	if enableDebugLogging && tmuxDebugPaneWriter == nil {
 		enableDebugLogging = false
 		defer func() { enableDebugLogging = true }()
@@ -324,48 +323,48 @@ func chooseAlias(keywords string) (string, bool, error) {
 	defer cancelReader()
 	program := tea.NewProgram(prompt, append(opts, tea.WithOutput(os.Stderr))...)
 	if _, err := program.Run(); err != nil {
-		return "", prompt.quit, fmt.Errorf("打开主机选择界面失败：%w", err)
+		return "", false, fmt.Errorf("打开主机选择界面失败：%w", err)
 	}
 	if prompt.quit || prompt.selected == nil {
 		return "", true, nil
 	}
 	fmt.Fprintf(os.Stderr, "%s 正在连接 %s…\r\n", promptSelectedIcon, prompt.selected.Alias)
+	prompt.detailFocus = false
 	return prompt.selected.Alias, false, nil
 }
 
-func predictDestination(dest string) (string, bool, error) {
+func newHostPrompt(keywords string) *sshPrompt {
+	prompt := newSSHPrompt(getAllHosts(), keywords)
+	prompt.config = userConfig
+	return prompt
+}
+
+func promptForDestination(dest string) *sshPrompt {
 	if !isTerminal || strings.ContainsAny(dest, ".:[]@") {
-		return dest, false, nil
+		return nil
 	}
 
 	hosts := getAllHosts()
 	for _, host := range hosts {
 		if host.Alias == dest {
-			return dest, false, nil
+			return nil
 		}
 	}
 
 	for _, pattern := range userConfig.wildcardPatterns {
 		if pattern.Regex().MatchString(dest) {
-			return dest, false, nil
+			return nil
 		}
 	}
 
-	match := false
 	keywords := strings.Fields(strings.ToLower(dest))
 	for _, host := range hosts {
 		if matchHost(host, keywords) {
-			match = true
-			break
+			if _, err := lookupHostWithTimeout(dest, 200*time.Millisecond); err != nil {
+				return newHostPrompt(dest)
+			}
+			return nil
 		}
 	}
-	if !match {
-		return dest, false, nil
-	}
-
-	if _, err := lookupHostWithTimeout(dest, 200*time.Millisecond); err == nil {
-		return dest, false, nil
-	}
-
-	return chooseAlias(dest)
+	return nil
 }

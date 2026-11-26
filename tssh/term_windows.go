@@ -346,5 +346,5 @@ func splitCommandLine(command string) ([]string, error) {
 	return windows.DecomposeCommandLine(command)
 }
 
-func suspendProcess() {
+func suspendProcess(bool) {
 }

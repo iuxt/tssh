@@ -81,6 +81,7 @@ type sshArgs struct {
 	Debug          bool        `arg:"--debug" help:"verbose mode for debugging, same as ssh's -vvv"`
 	EncSecret      bool        `arg:"--enc-secret" help:"[tools] encode secret for configuration"`
 	originalDest   string
+	sessionProcess bool
 }
 
 func (sshArgs) Description() string {
