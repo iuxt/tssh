@@ -24,6 +24,7 @@ debian/files
 *.swo
 
 dist/
+__pycache__/
 
 # Hugo website build output
 website/public/

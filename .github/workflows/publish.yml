@@ -3,7 +3,7 @@ name: Release trzsz-ssh
 on:
   push:
     tags:
-      - "*"
+      - "v*"
 
 permissions:
   contents: write
@@ -15,12 +15,24 @@ jobs:
     steps:
       - name: Checkout trzsz-ssh
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify release tag against VERSION
+        run: |
+          version=$(python3 scripts/version.py check)
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Expected release tag v$version, got $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          echo "TSSH_VERSION=$version" >> "$GITHUB_ENV"
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
+        env:
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
         with:
           distribution: goreleaser
           version: "~> v1"
@@ -34,13 +46,13 @@ jobs:
           export GOROOT="$RUNNER_TEMP/go-legacy-win7"
           export PATH="$GOROOT/bin:$PATH"
           go version
-          version=${GITHUB_REF_NAME#v}
+          version=$TSSH_VERSION
           mkdir -p tssh_${version}_win7_i386 tssh_${version}_win7_x86_64
-          GOOS=windows GOARCH=386 go build -ldflags "-s -w -X trzsz-ssh/tssh.kTsshVersion=${version}" -o tssh_${version}_win7_i386/tssh.exe .
+          GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o tssh_${version}_win7_i386/tssh.exe .
           GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o tssh_${version}_win7_i386/trz.exe ./third_party/trzsz-go/cmd/trz/main.go
           GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o tssh_${version}_win7_i386/tsz.exe ./third_party/trzsz-go/cmd/tsz/main.go
           zip -r tssh_${version}_win7_i386.zip tssh_${version}_win7_i386
-          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X trzsz-ssh/tssh.kTsshVersion=${version}" -o tssh_${version}_win7_x86_64/tssh.exe .
+          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o tssh_${version}_win7_x86_64/tssh.exe .
           GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o tssh_${version}_win7_x86_64/trz.exe ./third_party/trzsz-go/cmd/trz/main.go
           GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o tssh_${version}_win7_x86_64/tsz.exe ./third_party/trzsz-go/cmd/tsz/main.go
           zip -r tssh_${version}_win7_x86_64.zip tssh_${version}_win7_x86_64

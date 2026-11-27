@@ -1,6 +1,7 @@
 project_name: tssh
 before:
   hooks:
+    - python3 scripts/version.py check
     - go mod tidy
 builds:
   - id: tssh
@@ -9,7 +10,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X trzsz-ssh/tssh.kTsshVersion={{ .Version }}
+      - -s -w
     goos:
       - linux
       - windows

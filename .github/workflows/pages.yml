@@ -5,10 +5,18 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      - 'VERSION'
+      - 'tssh/VERSION'
+      - 'scripts/build.py'
+      - 'scripts/version.py'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
       - 'website/**'
+      - 'VERSION'
+      - 'tssh/VERSION'
+      - 'scripts/build.py'
+      - 'scripts/version.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -48,8 +56,8 @@ jobs:
         env:
           PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
-          hugo --source website --gc --minify --panicOnWarning \
-            --baseURL "${PAGES_BASE_URL:-https://iuxt.github.io/tssh}/"
+          python3 scripts/build.py website \
+            --base-url "${PAGES_BASE_URL:-https://iuxt.github.io/tssh}/"
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4

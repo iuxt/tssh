@@ -61,6 +61,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
+      - name: Set snapshot version from VERSION
+        run: |
+          version=$(python3 scripts/version.py check)
+          echo "GORELEASER_CURRENT_TAG=v$version" >> "$GITHUB_ENV"
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

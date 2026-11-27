@@ -25,6 +25,7 @@ SOFTWARE.
 package tssh
 
 import (
+	_ "embed"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -33,8 +34,12 @@ import (
 	"strings"
 )
 
-// kTsshVersion is replaced with the pushed tag version by GoReleaser.
-var kTsshVersion = "0.1.25"
+// versionManifest is synchronized from the repository's VERSION.
+//
+//go:embed VERSION
+var versionManifest string
+
+var kTsshVersion = strings.TrimRight(versionManifest, "\r\n")
 
 // buildTag stores the version tag injected at build time via -ldflags.
 var buildTag = ""

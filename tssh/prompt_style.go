@@ -214,7 +214,7 @@ func (p *sshPrompt) View() tea.View {
 		return p.editorView()
 	}
 	width, rows := max(1, p.width), p.pageSize()
-	title := promptColor(promptAccent, "tssh  主机连接")
+	title := promptColor(promptAccent, "tssh v"+kTsshVersion+"  主机连接")
 	count := fmt.Sprintf("%d / %d 台主机", len(p.visible), len(p.hosts))
 	gap := width - ansi.StringWidth(title) - ansi.StringWidth(count)
 	if gap > 0 {

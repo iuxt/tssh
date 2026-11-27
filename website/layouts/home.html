@@ -1,5 +1,6 @@
 {{ define "main" }}
 {{ $repo := site.Params.repository }}
+{{ $version := strings.TrimSpace (resources.Get "VERSION").Content }}
 <header class="site-header wrap">
   <a class="brand" href="{{ site.Home.RelPermalink }}" aria-label="tssh 首页"><span class="brand-icon" aria-hidden="true">&gt;_</span>tssh<span class="brand-dot">.</span></a>
   <nav aria-label="主导航">
@@ -64,6 +65,6 @@ go build -o tssh .</pre></div><p class="install-note">需要 Go 1.25 或以上�
   </section>
   <section class="closing wrap"><div class="closing-mark" aria-hidden="true">&gt;_</div><div><p>一个终端，连接你的世界。</p><span>基于 trzsz-ssh 持续改进，保持开源。</span></div><a class="button secondary" href="{{ $repo }}">在 GitHub 上探索 <span aria-hidden="true">↗</span></a></section>
 </main>
-<footer class="site-footer wrap"><a class="brand" href="{{ site.Home.RelPermalink }}">tssh<span class="brand-dot">.</span></a><span>为每一次远程连接，少一点阻力。</span><div><a href="{{ $repo }}/blob/main/LICENSE">MIT License</a><a href="https://github.com/trzsz/trzsz-ssh">上游项目 ↗</a><a href="{{ $repo }}">GitHub ↗</a></div></footer>
+<footer class="site-footer wrap"><a class="brand" href="{{ site.Home.RelPermalink }}">tssh<span class="brand-dot">.</span></a><span>v{{ $version }} · 为每一次远程连接，少一点阻力。</span><div><a href="{{ $repo }}/blob/main/LICENSE">MIT License</a><a href="https://github.com/trzsz/trzsz-ssh">上游项目 ↗</a><a href="{{ $repo }}">GitHub ↗</a></div></footer>
 <div id="copy-status" class="copy-status" role="status" aria-live="polite"></div>
 {{ end }}

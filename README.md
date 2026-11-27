@@ -30,6 +30,13 @@ tssh 设计为 ssh 客户端的直接替代品，提供与 openssh 完全兼容�
 
   </details>
 
+### 版本、构建与发布
+
+仓库根目录的 `VERSION` 是唯一版本源。运行 `./scripts/version.py get` 查看版本，运行 `./scripts/version.py check` 校验客户端和官网的版本副本。通过 `bump-patch`、`bump-minor` 或 `bump-major` 升级并同步版本。直接编辑 `VERSION` 后，运行 `./scripts/version.py sync` 同步。版本格式为 `major.minor.patch`，每段为 0 到 65534 的整数。
+
+- `./scripts/build.py` 构建 `tssh`、`trz`、`tsz` 和 `trzsz` 到 `dist/bin/`；`./scripts/build.py website` 构建官网到 `website/public/`。使用 `all` 构建两者，使用 `--output` 指定输出目录。
+- 提交版本变更后，运行 `./scripts/deploy.py` 将当前提交的 `v<版本>` 标签推送到 `origin`，触发 GitHub Releases 流程。使用 `--dry-run` 预览，使用 `--remote` 指定其他远端。官网随 `main` 的相关变更由 GitHub Pages 部署。
+
 ### 登录界面
 
 - 配置默认保存在 `~/.tssh/config` ( Windows 是 `C:\Users\xxx\.tssh\config`, `xxx` 换成用户名 )。可以直接在登录界面按 `n` 新增主机，首次保存会创建配置文件。

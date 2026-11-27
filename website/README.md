@@ -13,7 +13,7 @@ hugo server --source website
 访问命令输出的本地地址。生产构建：
 
 ```sh
-hugo --source website --gc --minify --panicOnWarning
+./scripts/build.py website
 ```
 
 输出到 `website/public/`，不提交构建产物。
@@ -22,6 +22,7 @@ hugo --source website --gc --minify --panicOnWarning
 
 - `hugo.toml`：站点地址、SEO 描述、项目链接。
 - `data/features.yaml`：功能介绍。
+- `assets/VERSION`：首页页脚版本，由仓库根目录的 `VERSION` 同步。
 - `layouts/home.html`：首页结构与其他中文文案。
 - `assets/css/main.css`：响应式样式，支持减少动态效果的系统设置。
 - `assets/js/main.js`：示意主机搜索、键盘选择、示例切换、命令复制。
@@ -32,7 +33,7 @@ hugo --source website --gc --minify --panicOnWarning
 
 工作流：`.github/workflows/pages.yml`。在仓库 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。
 
-推送 `website/**` 或该工作流到 `main` 后，自动构建并部署；也可在 Actions 中手动运行。PR 只验证构建，不部署。部署步骤使用 Pages 返回的 `base_url`，兼容项目子路径与自定义域名。
+推送网站、版本文件或相关构建脚本的变更到 `main` 后，自动构建并部署；也可在 Actions 中手动运行。PR 只验证构建，不部署。部署步骤使用 Pages 返回的 `base_url`，兼容项目子路径与自定义域名。
 
 默认地址：https://iuxt.github.io/tssh/
 
